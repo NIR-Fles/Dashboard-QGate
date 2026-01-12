@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bolt Monitoring Dashboard - Quality Gate System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="logo-area">
+                <img src="https://electrindoid.com/favicon.svg" alt="Electrindo Logo" class="brand-logo">
+                <div class="company-name">
+                    <h1>Electrindo Inti Dinamika</h1>
+                </div>
+            </div>
+
+            <div class="system-title">
+                <h2>Final Bolt Inspection Monitoring System</h2>
+            </div>
+
+            <div class="datetime-display">
+                <div id="date">--</div>
+                <div id="time">--:--:--</div>
+            </div>
+        </header>
+
+
+
+        <!-- Control Panel -->
+        <section class="control-panel">
+            <div class="status-group">
+                <div class="status-row">
+                    <span class="label">PLC</span>
+                    <span class="status-badge connected">CONNECTED</span>
+                </div>
+                <div class="status-row">
+                    <span class="label">Database</span>
+                    <span class="status-badge connected">CONNECTED</span>
+                </div>
+            </div>
+
+            <div class="info-group">
+                <div class="info-row">
+                    <span class="label">Frame</span>
+                    <span class="value accent">4I</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Model</span>
+                    <span class="value accent">PCX 160</span>
+                </div>
+            </div>
+
+            <div class="final-result-group">
+                <span class="result-label">Final Result</span>
+                <div class="result-display ng" id="final-result">
+                    NG
+                </div>
+            </div>
+        </section>
+
+        <!-- Image Monitoring Section -->
+        <section class="image-panel">
+            <!-- Right Camera Images (2) -->
+            <div class="img-column">
+                <div class="img-placeholder"></div>
+                <div class="img-placeholder"></div>
+            </div>
+
+            <!-- Upper Camera Image (2) -->
+            <div class="img-column">
+                <div class="img-placeholder"></div>
+                <div class="img-placeholder"></div>
+            </div>
+
+            <!-- Left Camera Images (2) -->
+            <div class="img-column">
+                <div class="img-placeholder"></div>
+                <div class="img-placeholder"></div>
+            </div>
+        </section>
+
+        <!-- Inspection Grid -->
+        <section class="inspection-grid">
+            <!-- Right Camera -->
+            <div class="camera-column">
+                <div class="column-header">
+                    <h3>Right Camera</h3>
+                    <span class="column-status ok">OK</span>
+                </div>
+                <div class="list-container">
+                    <ul class="inspection-list" id="list-right">
+                        <!-- Items injected by JS -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Upper Camera (Moved to Middle) -->
+            <div class="camera-column">
+                <div class="column-header">
+                    <h3>Upper Camera</h3>
+                    <span class="column-status ok">OK</span>
+                </div>
+                <div class="list-container">
+                    <ul class="inspection-list" id="list-upper">
+                        <!-- Items injected by JS -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Left Camera (Moved to Right) -->
+            <div class="camera-column">
+                <div class="column-header">
+                    <h3>Left Camera</h3>
+                    <span class="column-status ng">NG</span>
+                </div>
+                <div class="list-container">
+                    <ul class="inspection-list" id="list-left">
+                        <!-- Items injected by JS -->
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="creator-info">
+                Created By: <span class="vendor-name">PT. Electrindo Inti Dinamika</span>
+            </div>
+        </footer>
+    </div>
+    <script src="main.js"></script>
+</body>
+
+</html>
