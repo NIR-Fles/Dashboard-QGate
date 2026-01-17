@@ -1,1 +1,19 @@
 # initial commit
+on backend side i want to create a python program that runs yolo model. the yolo detection is not stream based detection but capture based detection means input camera proces captured frame to yolo.
+
+so basically i dont know which method is effective for my scenario.
+so the method of capturing frame require sensor. in here im using three photo sensor. the camera will taken a photo and the yolo will detect it.
+
+in my imagination im using opencv to play with my camera. then there are three sensor. but the sensor is not used with my machine, but its connected to other device i imagine as PLC. its communicate through pymodbus library using tcp method. so the modbus server device (the PLC) will send signal high or low in specific modbus register that my device act as client read to that specific register. 
+
+next for the yolo logical detection. okay for the first i want to explain what task do i bult on this project. so basically im using yolo to detect the bolt on motorcycle frame. basically there are up to 20 specific bolt with different id that i already have custom trained model based on yolo11. so  the detection report flow is, if specific bolt example bolt_1 detected then will send to front end using fastapi framework.  oh the variable to handle status i placed into array bolt_status[20]. so on this array each data represent the bold id and contain all of bolt status "OK", "NG", "pending". the default value is "pending". the "pending" indicator on front end side is represented using "-" and grey color bg while the "OK" still green and "NG" still red.
+
+then last is logic while the motorcycle frame is detected or not is represented using pymodbus register. so there is more specific register that contain signal when motorcycle is coming and  leaving. this is two separated register but on logic python will be used "OR" operator. so, what i want to do with this logic is to reset the frontend ui to default where the picture placeholder back into "black" container, then the status reset to "-". 
+
+okay i know this is not easy (for me) cause the flow logic is really hard even at planning only.
+
+oh so what if using threading or multiprocess to split the yolo code and fastapi framework .
+
+next on the frontend side the status on the dashboard will update realtime based on detection on yolo. for this project we dont use database first to catch data to frontend instead directly from python backend yolo then use fastapi to communicate with frontend side.
+
+i hope you understand the flow of what i want and can create backend code for this my project. i've already create frontend and backend folder directory separated inside in "bolt-monitoring-dashboard directory".

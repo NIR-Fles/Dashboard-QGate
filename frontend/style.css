@@ -20,10 +20,37 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Image Feed Styles */
+.live-feed {
+    width: 100%;
+    height: 100%;
+    /* Or fixed height like 200px */
+    object-fit: cover;
+    background-color: #000;
+    /* Placeholder black */
+    border-radius: 8px;
+    min-height: 150px;
+}
+
+.img-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.column-label {
+    font-weight: 600;
+    color: #fff;
+    text-align: center;
+    background: #333;
+    padding: 4px;
+    border-radius: 4px;
 }
 
 body {
-    font-family: 'Inter', sans-serif;
     background-color: var(--bg-dark);
     color: var(--text-primary);
     height: 100vh;
@@ -329,23 +356,7 @@ body {
     font-size: 1.2rem;
 }
 
-.column-status {
-    padding: 0.25rem 0.75rem;
-    font-weight: 800;
-    border-radius: 2px;
-    min-width: 50px;
-    text-align: center;
-}
 
-.column-status.ok {
-    background-color: var(--status-green);
-    color: #003300;
-}
-
-.column-status.ng {
-    background-color: var(--status-red);
-    color: white;
-}
 
 .list-container {
     flex-grow: 1;
@@ -417,6 +428,13 @@ body {
 
 .item-status.ng {
     background-color: var(--status-red);
+    color: white;
+}
+
+.item-status.pending,
+.column-status.pending,
+.result-display.pending {
+    background-color: var(--status-gray);
     color: white;
 }
 
