@@ -25,7 +25,19 @@ class MockYoloProcessor(YoloProcessorBase):
     def process(self, frame):
         # Mock Logic: Randomly "detect" some bolts
         detected = []
-        all_bolts = [f"BOLT_{i}" for i in range(1, 21)]
+        all_bolts = [
+            # Right
+            "NUT_FLANGE_6MM_GROUNDING", "BOLT_FIXING_RADIATOR_RESERVE", "BOLT_AXLE_FRONT_WHEEL",
+            "BF_10X55_LINK_ASSY_ENG_HANGER_R", "BF_10X38_REAR_CUSHION_R", "BF_10X65_MUFFLER_CENTER_UPPER",
+            "BF_10X65_MUFFLER_REAR_UNDER", "BF_10X65_MUFFLER_FRONT_UNDER",
+            # Upper
+            "BS_6X18_FENDER_C_REAR_FRONT", "BS_6X18_FENDER_C_REAR_REAR",
+            # Left
+            "NUT_FRONT_AXLE_12MM", "BOLT_TORX_8X28_CALIPER_UNDER", "BOLT_TORX_8X28_CALIPER_UPPER",
+            "BF_8X12_HORN_COMP", "BOLT_SIDE_STAND_PIVOT", "BF_6X12_CLAMP_THROTTLE_CABLE",
+            "BF_10X55_LINK_ASSY_ENG_HANGER_L", "BF_10X38_REAR_CUSHION_L", "BOLT_WASHER_6X12_REAR_FENDER",
+            "BF_10X255_LINK_ASSY_ENG_HANGER_L"
+        ]
         
         for bolt in all_bolts:
             if random.random() > 0.2: # 80% chance of detection

@@ -4,21 +4,8 @@ const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const host = window.location.host; // e.g., "localhost:8000" or "192.168.1.50:8000"
 const WS_URL = `${protocol}//${host}/ws`;
 
-// Static Bolt Configuration (Restored)
-const boltData = {
-    right: [
-        "BOLT_1", "BOLT_2", "BOLT_3", "BOLT_4",
-        "BOLT_5", "BOLT_6", "BOLT_7", "BOLT_8"
-    ],
-    upper: [
-        "BOLT_9", "BOLT_10"
-    ],
-    left: [
-        "BOLT_11", "BOLT_12", "BOLT_13", "BOLT_14",
-        "BOLT_15", "BOLT_16", "BOLT_17", "BOLT_18",
-        "BOLT_19", "BOLT_20"
-    ]
-};
+// Static Bolt Configuration (Obsoleted by static HTML)
+// const boltData = { ... };
 
 // DOM Elements
 const elements = {
@@ -37,42 +24,15 @@ const elements = {
         right: document.getElementById('list-right'),
         upper: document.getElementById('list-upper'),
         left: document.getElementById('list-left'),
+    },
+    headers: {
+        right: document.getElementById('header-status-right'),
+        upper: document.getElementById('header-status-upper'),
+        left: document.getElementById('header-status-left'),
     }
 };
 
-// Initialize Lists immediately
-function initLists() {
-    for (const [camKey, bolts] of Object.entries(boltData)) {
-        const listEl = elements.lists[camKey];
-        if (!listEl) continue;
-
-        listEl.innerHTML = '';
-        bolts.forEach((boltId, index) => {
-            const li = document.createElement('li');
-
-            // Index
-            const idxSpan = document.createElement('span');
-            idxSpan.className = 'item-index';
-            idxSpan.textContent = index + 1;
-
-            // Name
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'item-name';
-            nameSpan.textContent = boltId;
-
-            // Status Badge (Default Pending)
-            const statusSpan = document.createElement('span');
-            statusSpan.className = 'item-status pending';
-            statusSpan.textContent = '-';
-
-            li.appendChild(idxSpan);
-            li.appendChild(nameSpan);
-            li.appendChild(statusSpan);
-
-            listEl.appendChild(li);
-        });
-    }
-}
+// initLists removed as lists are now static in HTML
 
 function connectWebSocket() {
     console.log("Connecting to WebSocket...");
@@ -128,35 +88,54 @@ function updateDashboard(state) {
     }
 
     // 2. Update Lists
-    // Use the static keys to match the lists
-    for (const [camKey, bolts] of Object.entries(boltData)) {
-        const listEl = elements.lists[camKey];
-        if (!listEl) continue;
-
-        const listItems = listEl.children;
-
-        bolts.forEach((boltId, index) => {
-            // Get status from backend state, default to "-"
-            const status = state.statuses[boltId] || "-";
-
-            const li = listItems[index];
-            if (li) {
-                const statusSpan = li.querySelector('.item-status');
-                if (statusSpan) {
-                    // Update only if changed
-                    if (statusSpan.textContent !== status) {
-                        statusSpan.textContent = status;
-
-                        // Update class
-                        statusSpan.className = 'item-status';
-                        if (status === 'OK') statusSpan.classList.add('ok');
-                        else if (status === 'NG') statusSpan.classList.add('ng');
-                        else statusSpan.classList.add('pending');
-                    }
-                }
+    // Iterate over the known keys in the incoming payload OR update by DOM queries.
+    // Iterating payload is cleaner for updates.
+    if (state.statuses) {
+        for (const [boltId, status] of Object.entries(state.statuses)) {
+            const statusSpan = document.getElementById(`status-${boltId}`);
+            if (statusSpan && statusSpan.textContent !== status) {
+                statusSpan.textContent = status;
+                // Update class
+                statusSpan.className = 'item-status';
+                if (status === 'OK') statusSpan.classList.add('ok');
+                else if (status === 'NG') statusSpan.classList.add('ng');
+                else statusSpan.classList.add('pending'); // Handles '-' or other states
             }
-        });
+        }
     }
+
+    // Update Section Headers based on current DOM state
+    const sections = [
+        { listId: 'list-right', headerKey: 'right' },
+        { listId: 'list-upper', headerKey: 'upper' },
+        { listId: 'list-left', headerKey: 'left' }
+    ];
+
+    sections.forEach(section => {
+        const listEl = document.getElementById(section.listId);
+        if (!listEl) return;
+
+        const statusSpans = listEl.querySelectorAll('.item-status');
+        const currentStatuses = Array.from(statusSpans).map(span => span.textContent);
+
+        // Determine Section Status
+        let sectionStatus = '-';
+        if (currentStatuses.includes('NG')) {
+            sectionStatus = 'NG';
+        } else if (currentStatuses.length > 0 && currentStatuses.every(s => s === 'OK')) {
+            sectionStatus = 'OK';
+        }
+
+        // Update Header
+        const headerEl = elements.headers[section.headerKey];
+        if (headerEl && headerEl.textContent !== sectionStatus) {
+            headerEl.textContent = sectionStatus;
+            headerEl.className = 'column-status';
+            if (sectionStatus === 'OK') headerEl.classList.add('ok');
+            else if (sectionStatus === 'NG') headerEl.classList.add('ng');
+            else headerEl.classList.add('pending');
+        }
+    });
 
     // 3. Update Final Result
     // state.system.final_result
@@ -167,7 +146,7 @@ function updateDashboard(state) {
     elements.finalResult.className = 'result-display';
     if (finalRes === 'OK') elements.finalResult.classList.add('ok');
     else if (finalRes === 'NG') elements.finalResult.classList.add('ng');
-    else elements.finalResult.classList.add('pending');
+    else elements.finalResult.classList.add('pending'); // Handles '-' as default gray
 }
 
 function updateDateTime() {
@@ -181,7 +160,7 @@ function updateDateTime() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    initLists(); // Render static list immediately
+    // initLists(); // Removed
     updateDateTime();
     setInterval(updateDateTime, 1000);
     connectWebSocket();

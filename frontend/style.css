@@ -431,6 +431,25 @@ body {
     color: white;
 }
 
+.column-status {
+    padding: 4px 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    min-width: 50px;
+    text-align: center;
+}
+
+.column-status.ok {
+    background-color: var(--status-green);
+    color: #003300;
+}
+
+.column-status.ng {
+    background-color: var(--status-red);
+    color: white;
+}
+
 .item-status.pending,
 .column-status.pending,
 .result-display.pending {

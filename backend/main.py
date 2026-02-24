@@ -2,6 +2,7 @@ import asyncio
 import logging
 import threading
 import time
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,7 +15,16 @@ from state_manager import StateManager
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main")
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    loop_thread = threading.Thread(target=control_loop, daemon=True)
+    loop_thread.start()
+    yield
+    # Shutdown logic
+    camera.release()
+
+app = FastAPI(lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -112,15 +122,7 @@ def control_loop():
             logger.error(f"Error in control loop: {e}")
             time.sleep(1)
 
-# Start Control Loop in Background
-@app.on_event("startup")
-async def startup_event():
-    loop_thread = threading.Thread(target=control_loop, daemon=True)
-    loop_thread.start()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    camera.release()
+# Startup and Shutdown logic now handled by lifespan asynccontextmanager above.
 
 # --- Endpoints ---
 
@@ -166,3 +168,8 @@ frontend_dir = os.path.join(current_dir, "../frontend")
 
 # Mount at root (must be last to not override API routes)
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting uvicorn server...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

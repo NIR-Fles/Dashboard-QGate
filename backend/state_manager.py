@@ -27,18 +27,40 @@ class StateManager:
             "plc_connected": False,
             "unit_present": False,
             "model": "PCX 160",  # Hardcoded for now
-            "final_result": "PENDING"
+            "final_result": "-"
         }
         
-        # Bolt List & Statuses
-        # Structure matched to frontend requirements
+        # Bolt List & Statuses using descriptive IDs
         self.bolt_data = {
-            "right": [f"BOLT_{i}" for i in range(1, 9)],
-            "upper": [f"BOLT_{i}" for i in range(9, 11)],
-            "left": [f"BOLT_{i}" for i in range(11, 21)]
+            "right": [
+                "NUT_FLANGE_6MM_GROUNDING",
+                "BOLT_FIXING_RADIATOR_RESERVE",
+                "BOLT_AXLE_FRONT_WHEEL",
+                "BF_10X55_LINK_ASSY_ENG_HANGER_R",
+                "BF_10X38_REAR_CUSHION_R",
+                "BF_10X65_MUFFLER_CENTER_UPPER",
+                "BF_10X65_MUFFLER_REAR_UNDER",
+                "BF_10X65_MUFFLER_FRONT_UNDER"
+            ],
+            "upper": [
+                "BS_6X18_FENDER_C_REAR_FRONT",
+                "BS_6X18_FENDER_C_REAR_REAR"
+            ],
+            "left": [
+                "NUT_FRONT_AXLE_12MM",
+                "BOLT_TORX_8X28_CALIPER_UNDER",
+                "BOLT_TORX_8X28_CALIPER_UPPER",
+                "BF_8X12_HORN_COMP",
+                "BOLT_SIDE_STAND_PIVOT",
+                "BF_6X12_CLAMP_THROTTLE_CABLE",
+                "BF_10X55_LINK_ASSY_ENG_HANGER_L",
+                "BF_10X38_REAR_CUSHION_L",
+                "BOLT_WASHER_6X12_REAR_FENDER",
+                "BF_10X255_LINK_ASSY_ENG_HANGER_L"
+            ]
         }
         
-        # Status Map: { "BOLT_1": "-", "BOLT_2": "OK", ... }
+        # Status Map: { "NUT_FLANGE_6MM_GROUNDING": "-", ... }
         self.bolt_statuses = {bolt: "-" for sublist in self.bolt_data.values() for bolt in sublist}
         
         # Images (Base64 strings)
@@ -54,7 +76,7 @@ class StateManager:
             for key in self.bolt_statuses:
                 self.bolt_statuses[key] = "-"
             
-            self.system_status["final_result"] = "PENDING"
+            self.system_status["final_result"] = "-"
             self.system_status["unit_present"] = False
             
             # Reset all image slots
@@ -90,13 +112,16 @@ class StateManager:
     def get_full_state(self):
         with self.lock:
             # Calculate Final Result
-            statuses = list(self.bolt_statuses.values())
-            if "NG" in statuses:
-                final = "NG"
-            elif "-" in statuses:
-                final = "PENDING"
+            if not self.system_status["unit_present"]:
+                final = "-"
             else:
-                final = "OK"
+                statuses = list(self.bolt_statuses.values())
+                if "NG" in statuses:
+                    final = "NG"
+                elif "-" in statuses:
+                    final = "PENDING"
+                else:
+                    final = "OK"
                 
             self.system_status["final_result"] = final
 
