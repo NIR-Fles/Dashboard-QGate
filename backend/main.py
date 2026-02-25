@@ -2,9 +2,11 @@ import asyncio
 import logging
 import threading
 import time
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from modbus_handler import get_modbus_handler
 from camera_handler import get_camera_handler
@@ -14,6 +16,11 @@ from state_manager import StateManager
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("main")
+
+# Resolve absolute paths
+current_dir = os.path.dirname(os.path.abspath(__file__))
+test_images_path = os.path.join(current_dir, "test_images")
+model_path = os.path.join(current_dir, "best.pt")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,14 +44,14 @@ app.add_middleware(
 
 # --- CONFIGURATION ---
 # Modes: "MOCK", "TEST", "REAL"
-SYSTEM_MODE = "MOCK" 
+SYSTEM_MODE = "TEST" 
 logger.info(f"System Starting in Mode: {SYSTEM_MODE}")
 
 # Global Components
 state_manager = StateManager()
 modbus = get_modbus_handler(SYSTEM_MODE)
-camera = get_camera_handler(SYSTEM_MODE)
-yolo = get_yolo_processor(SYSTEM_MODE)
+camera = get_camera_handler(SYSTEM_MODE, base_dir=test_images_path)
+yolo = get_yolo_processor(SYSTEM_MODE, model_path=model_path)
 
 # Websocket Connection Manager
 class ConnectionManager:
@@ -94,16 +101,23 @@ def control_loop():
                 step = 1 if triggers["capture_step_1"] else 2
                 logger.info(f"Capture Step {step} triggered.")
                 
-                # Capture Frames (All Cameras)
-                frames = camera.capture_all()
+                # Capture Frames (All Cameras) specific to the step
+                frames = camera.capture_all(step=step)
+                logger.info(f"Frames captured for step {step}")
                 
-                # Update State with ALL Images for THIS step
+                # Run Detection and Update State with Annotated Images
+                detected_bolts = []
                 for cam_key, frame in frames.items():
-                    state_manager.update_image(cam_key, step, frame)
+                    if frame is not None:
+                        # Process frame and get the image with bounding boxes
+                        bolts, annotated_img = yolo.process(frame)
+                        detected_bolts.extend(bolts)
+                        state_manager.update_image(cam_key, step, annotated_img)
+                    else:
+                        state_manager.update_image(cam_key, step, None)
                 
-                # Run Detection (Simulate passing frames)
-                # We assume yolo detects labels present in the frames 
-                detected_bolts = yolo.process(None)
+                # Deduplicate the list (in case a bolt is seen by multiple cameras)
+                detected_bolts = list(set(detected_bolts))
                 
                 logger.info(f"Detected bolts: {detected_bolts}")
                 
@@ -157,13 +171,7 @@ async def debug_trigger(signal: str):
         return {"status": "success", "triggered": signal}
     return {"status": "error", "message": "Invalid signal"}
 
-# --- Serve Frontend (Static Files) ---
-import os
-from fastapi.staticfiles import StaticFiles
-
 # Resolve path to frontend relative to this file
-# This file is in backend/, so frontend is in ../frontend
-current_dir = os.path.dirname(os.path.abspath(__file__))
 frontend_dir = os.path.join(current_dir, "../frontend")
 
 # Mount at root (must be last to not override API routes)

@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Application Specific
+backend/test_images/
+*.pt
+
+# Environment
+.venv/
+env/
+venv/
+.env
+
+# IDEs
+.vscode/
+.idea/

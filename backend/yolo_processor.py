@@ -10,7 +10,7 @@ logger = logging.getLogger("yolo_processor")
 
 # Abstract Base Class
 class YoloProcessorBase:
-    def __init__(self, model_path="yolo11n.pt"):
+    def __init__(self, model_path="best.pt"):
         self.model_path = model_path
         
     def process(self, frame):
@@ -18,7 +18,7 @@ class YoloProcessorBase:
 
 # Mock Implementation
 class MockYoloProcessor(YoloProcessorBase):
-    def __init__(self, model_path="yolo11n.pt"):
+    def __init__(self, model_path="best.pt"):
         super().__init__(model_path)
         logger.info("MOCK YOLO: Initialized.")
 
@@ -42,41 +42,49 @@ class MockYoloProcessor(YoloProcessorBase):
         for bolt in all_bolts:
             if random.random() > 0.2: # 80% chance of detection
                 detected.append(bolt)
-        return detected
+        return detected, frame
 
 # Real Implementation
 class RealYoloProcessor(YoloProcessorBase):
-    def __init__(self, model_path="yolo11n.pt"):
+    def __init__(self, model_path="best.pt"):
         super().__init__(model_path)
         self.model = None
         if YOLO:
             try:
                 self.model = YOLO(model_path)
                 logger.info(f"REAL YOLO: Loaded model from {model_path}")
-            except Exception as e:
-                logger.error(f"REAL YOLO Error loading model: {e}")
+            except Exception:
+                logger.exception(f"REAL YOLO Error loading model from {model_path}")
         else:
             logger.error("ultralytics not installed! Real mode will fail.")
 
     def process(self, frame):
-        if not self.model:
-            return []
+        if not self.model or frame is None:
+            return [], frame
             
         detected = []
+        annotated_frame = frame
         try:
             results = self.model(frame)
             for result in results:
                 for box in result.boxes:
                      class_id = int(box.cls)
-                     label = self.model.names[class_id]
-                     detected.append(label)
+                     raw_label = self.model.names[class_id]
+                     
+                     # Format the label to match our dashboard IDs...
+                     formatted_label = raw_label.replace(" ", "_").replace("(", "").replace(")", "").upper()
+                     detected.append(formatted_label)
+                     
+                # Extract the image with drawn bounding boxes
+                annotated_frame = result.plot()
+                
         except Exception as e:
             logger.error(f"YOLO Inference Error: {e}")
             
-        return detected
+        return detected, annotated_frame
 
 # Factory Function
-def get_yolo_processor(mode="MOCK", model_path="yolo11n.pt"):
+def get_yolo_processor(mode="MOCK", model_path="best.pt"):
     if mode == "REAL" or mode == "TEST": 
         # TEST mode can utilize REAL YOLO if desired, or Mock YOLO. 
         # User asked for "Mock code", "Testing code (images from dir)", "Real code".
