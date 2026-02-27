@@ -12,6 +12,7 @@ from modbus_handler import get_modbus_handler
 from camera_handler import get_camera_handler
 from yolo_processor import get_yolo_processor
 from state_manager import StateManager
+from database import init_db, save_inspection, get_history
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -25,6 +26,7 @@ model_path = os.path.join(current_dir, "best.pt")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
+    init_db()
     loop_thread = threading.Thread(target=control_loop, daemon=True)
     loop_thread.start()
     yield
@@ -127,8 +129,17 @@ def control_loop():
 
                 # If Step 2 finished, finalize results (Pending -> NG)
                 if step == 2:
-                    logger.info("Step 2 finished. Finalizing results.")
-                    state_manager.finalize_results()
+                    logger.info("Step 2 finished. Finalizing results and saving to DB.")
+                    db_payload = state_manager.finalize_results()
+                    
+                    # Save to Database
+                    save_inspection(
+                        frame_id=db_payload["frame_id"],
+                        model=db_payload["model"],
+                        final_result=db_payload["final_result"],
+                        bolt_data=db_payload["bolt_data"],
+                        images=db_payload["images"]
+                    )
 
             time.sleep(0.1) # Prevent CPU hogging
             
@@ -145,19 +156,15 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Push updates periodically or on demand?
-            # Ideally, the client just listens. 
-            # But the server needs to push when state changes.
-            # For simplicity, we push every 500ms from here OR rely on frontend polling?
-            # Better: let the frontend wait for messages. 
-            # We will run a loop here to send state every X ms.
-            
-            await manager.broadcast_state()
-            await asyncio.sleep(0.5) 
-            
-            # Keep connection alive checking
-            # await websocket.receive_text() 
+            # We fetch state and send only to THIS connection.
+            # manager.broadcast_state() was redundant and N^2 complex.
+            state = state_manager.get_full_state()
+            await websocket.send_json(state)
+            await asyncio.sleep(0.2) # Faster updates (5fps)
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
 
 @app.post("/debug/trigger/{signal}")
@@ -171,8 +178,27 @@ async def debug_trigger(signal: str):
         return {"status": "success", "triggered": signal}
     return {"status": "error", "message": "Invalid signal"}
 
+@app.get("/api/history")
+async def fetch_history(limit: int = 50):
+    """Fetch recent inspection history from database."""
+    history = get_history(limit)
+    return {"status": "success", "data": history}
+
+@app.get("/api/history/{record_id}")
+async def fetch_history_detail(record_id: int):
+    """Fetch specific history detail (optional if all data is in list, but good for future expansion)"""
+    history = get_history(limit=100) # Quick hack to find it locally. In production, query DB directly by ID.
+    for record in history:
+        if record["id"] == record_id:
+            return {"status": "success", "data": record}
+    return {"status": "error", "message": "Record not found"}
+
 # Resolve path to frontend relative to this file
 frontend_dir = os.path.join(current_dir, "../frontend")
+
+# Mount historical images. Ensure this is BEFORE the catch-all frontend mount.
+history_images_dir = os.path.join(current_dir, "history_images")
+app.mount("/history_images", StaticFiles(directory=history_images_dir), name="history_images")
 
 # Mount at root (must be last to not override API routes)
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

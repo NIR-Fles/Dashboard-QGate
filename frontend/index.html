@@ -12,180 +12,300 @@
 </head>
 
 <body>
-    <div class="dashboard-container">
-        <!-- Top Bar -->
-        <header class="top-bar">
-            <div class="logo-area">
-                <img src="https://electrindoid.com/favicon.svg" alt="Electrindo Logo" class="brand-logo">
-                <div class="company-name">
-                    <h1>Electrindo Inti Dinamika</h1>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="https://electrindoid.com/favicon.svg" alt="Logo" class="sidebar-logo">
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" id="btn-monitoring">Monitoring</button>
+                <button class="nav-btn" id="btn-history">History</button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Monitoring Tab -->
+            <div id="monitoring-tab" class="tab-content active">
+                <div class="dashboard-container">
+                    <!-- Top Bar -->
+                    <header class="top-bar">
+                        <div class="system-title">
+                            <h1>Final Bolt Inspection Monitoring System</h1>
+                        </div>
+                        <div class="datetime-display">
+                            <div id="date">--</div>
+                            <div id="time">--:--:--</div>
+                        </div>
+                    </header>
+
+                    <!-- Control Panel -->
+                    <section class="control-panel">
+                        <div class="status-group">
+                            <div class="status-row">
+                                <span class="label">PLC</span>
+                                <span class="status-badge connected">CONNECTED</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="label">Database</span>
+                                <span class="status-badge connected">CONNECTED</span>
+                            </div>
+                        </div>
+
+                        <div class="info-group">
+                            <div class="info-row">
+                                <span class="label">Frame</span>
+                                <span id="monitoring-frame-id" class="value accent">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Model</span>
+                                <span id="monitoring-model-name" class="value accent">--</span>
+                            </div>
+                        </div>
+
+                        <div class="final-result-group">
+                            <span class="result-label">Final Result</span>
+                            <div class="result-display pending" id="final-result">-</div>
+                        </div>
+                    </section>
+
+                    <!-- Image Monitoring Section -->
+                    <section class="image-panel">
+                        <div class="img-column">
+                            <div class="img-placeholder">
+                                <img id="img-right-step1" src="" alt="Right Step 1">
+                            </div>
+                            <div class="img-placeholder">
+                                <img id="img-right-step2" src="" alt="Right Step 2">
+                            </div>
+                        </div>
+                        <div class="img-column">
+                            <div class="img-placeholder">
+                                <img id="img-upper-step1" src="" alt="Upper Step 1">
+                            </div>
+                            <div class="img-placeholder">
+                                <img id="img-upper-step2" src="" alt="Upper Step 2">
+                            </div>
+                        </div>
+                        <div class="img-column">
+                            <div class="img-placeholder">
+                                <img id="img-left-step1" src="" alt="Left Step 1">
+                            </div>
+                            <div class="img-placeholder">
+                                <img id="img-left-step2" src="" alt="Left Step 2">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Inspection Grid -->
+                    <section class="inspection-grid">
+                        <!-- Right Camera -->
+                        <div class="camera-column">
+                            <div class="column-header">
+                                <h3>Right Camera</h3>
+                                <span id="header-status-right" class="column-status pending">-</span>
+                            </div>
+                            <div class="list-container">
+                                <ul class="inspection-list" id="list-right">
+                                    <li><span class="item-index">1</span><span class="item-name">NUT FLANGE 6MM
+                                            GROUNDING</span><span class="item-status pending"
+                                            id="status-NUT_FLANGE_6MM_GROUNDING">-</span></li>
+                                    <li><span class="item-index">2</span><span class="item-name">BOLT FIXING RADIATOR
+                                            RESERVE</span><span class="item-status pending"
+                                            id="status-BOLT_FIXING_RADIATOR_RESERVE">-</span></li>
+                                    <li><span class="item-index">3</span><span class="item-name">BOLT AXLE FRONT
+                                            WHEEL</span><span class="item-status pending"
+                                            id="status-BOLT_AXLE_FRONT_WHEEL">-</span></li>
+                                    <li><span class="item-index">4</span><span class="item-name">BF 10X55 LINK ASSY ENG
+                                            HANGER R</span><span class="item-status pending"
+                                            id="status-BF_10X55_LINK_ASSY_ENG_HANGER_R">-</span></li>
+                                    <li><span class="item-index">5</span><span class="item-name">BF 10X38 REAR CUSHION
+                                            R</span><span class="item-status pending"
+                                            id="status-BF_10X38_REAR_CUSHION_R">-</span></li>
+                                    <li><span class="item-index">6</span><span class="item-name">BF 10X65 MUFFLER CENTER
+                                            (UPPER)</span><span class="item-status pending"
+                                            id="status-BF_10X65_MUFFLER_CENTER_UPPER">-</span></li>
+                                    <li><span class="item-index">7</span><span class="item-name">BF 10X65 MUFFLER REAR
+                                            (UNDER)</span><span class="item-status pending"
+                                            id="status-BF_10X65_MUFFLER_REAR_UNDER">-</span></li>
+                                    <li><span class="item-index">8</span><span class="item-name">BF 10X65 MUFFLER FRONT
+                                            (UNDER)</span><span class="item-status pending"
+                                            id="status-BF_10X65_MUFFLER_FRONT_UNDER">-</span></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Upper Camera -->
+                        <div class="camera-column">
+                            <div class="column-header">
+                                <h3>Upper Camera</h3>
+                                <span id="header-status-upper" class="column-status pending">-</span>
+                            </div>
+                            <div class="list-container">
+                                <ul class="inspection-list" id="list-upper">
+                                    <li><span class="item-index">1</span><span class="item-name">BS 6X18 FENDER C REAR
+                                            (FRONT)</span><span class="item-status pending"
+                                            id="status-BS_6X18_FENDER_C_REAR_FRONT">-</span></li>
+                                    <li><span class="item-index">2</span><span class="item-name">BS 6X18 FENDER C REAR
+                                            (REAR)</span><span class="item-status pending"
+                                            id="status-BS_6X18_FENDER_C_REAR_REAR">-</span></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Left Camera -->
+                        <div class="camera-column">
+                            <div class="column-header">
+                                <h3>Left Camera</h3>
+                                <span id="header-status-left" class="column-status pending">-</span>
+                            </div>
+                            <div class="list-container">
+                                <ul class="inspection-list" id="list-left">
+                                    <li><span class="item-index">1</span><span class="item-name">NUT FRONT AXLE
+                                            12MM</span><span class="item-status pending"
+                                            id="status-NUT_FRONT_AXLE_12MM">-</span></li>
+                                    <li><span class="item-index">2</span><span class="item-name">BOLT TORX 8X28 CALIPER
+                                            (UNDER)</span><span class="item-status pending"
+                                            id="status-BOLT_TORX_8X28_CALIPER_UNDER">-</span></li>
+                                    <li><span class="item-index">3</span><span class="item-name">BOLT TORX 8X28 CALIPER
+                                            (UPPER)</span><span class="item-status pending"
+                                            id="status-BOLT_TORX_8X28_CALIPER_UPPER">-</span></li>
+                                    <li><span class="item-index">4</span><span class="item-name">BF 8X12 HORN
+                                            COMP</span><span class="item-status pending"
+                                            id="status-BF_8X12_HORN_COMP">-</span></li>
+                                    <li><span class="item-index">5</span><span class="item-name">BOLT SIDE STAND
+                                            PIVOT</span><span class="item-status pending"
+                                            id="status-BOLT_SIDE_STAND_PIVOT">-</span></li>
+                                    <li><span class="item-index">6</span><span class="item-name">BF 6X12 CLAMP THROTTLE
+                                            CABLE</span><span class="item-status pending"
+                                            id="status-BF_6X12_CLAMP_THROTTLE_CABLE">-</span></li>
+                                    <li><span class="item-index">7</span><span class="item-name">BF 10X55 LINK ASSY ENG
+                                            HANGER L</span><span class="item-status pending"
+                                            id="status-BF_10X55_LINK_ASSY_ENG_HANGER_L">-</span></li>
+                                    <li><span class="item-index">8</span><span class="item-name">BF 10X38 REAR CUSHION
+                                            L</span><span class="item-status pending"
+                                            id="status-BF_10X38_REAR_CUSHION_L">-</span></li>
+                                    <li><span class="item-index">9</span><span class="item-name">BOLT WASHER 6X12 REAR
+                                            FENDER</span><span class="item-status pending"
+                                            id="status-BOLT_WASHER_6X12_REAR_FENDER">-</span></li>
+                                    <li><span class="item-index">10</span><span class="item-name">BF 10x255 LINK ASSY
+                                            ENG HANGER L</span><span class="item-status pending"
+                                            id="status-BF_10X255_LINK_ASSY_ENG_HANGER_L">-</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
 
-            <div class="system-title">
-                <h2>Final Bolt Inspection Monitoring System</h2>
-            </div>
+            <!-- History Tab -->
+            <div id="history-tab" class="tab-content">
+                <div class="history-container">
+                    <header class="history-header">
+                        <h1>History Inspection</h1>
+                    </header>
 
-            <div class="datetime-display">
-                <div id="date">--</div>
-                <div id="time">--:--:--</div>
-            </div>
-        </header>
+                    <div class="history-main">
+                        <!-- Left: Table and Filters -->
+                        <div class="history-list-section">
+                            <div class="history-filters">
+                                <div class="filter-group">
+                                    <label>Search by ID Frame:</label>
+                                    <input type="text" id="search-frame-id" placeholder="Enter ID...">
+                                </div>
+                                <div class="filter-row">
+                                    <div class="filter-group">
+                                        <label>From</label>
+                                        <input type="datetime-local" id="filter-from">
+                                    </div>
+                                    <div class="filter-group">
+                                        <label>To</label>
+                                        <input type="datetime-local" id="filter-to">
+                                    </div>
+                                </div>
+                            </div>
 
+                            <div class="history-table-container">
+                                <table id="history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Frame</th>
+                                            <th>Model</th>
+                                            <th>Check Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="history-tbody">
+                                        <!-- Rows injected by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
 
+                        </div>
 
-        <!-- Control Panel -->
-        <section class="control-panel">
-            <div class="status-group">
-                <div class="status-row">
-                    <span class="label">PLC</span>
-                    <span class="status-badge connected">CONNECTED</span>
-                </div>
-                <div class="status-row">
-                    <span class="label">Database</span>
-                    <span class="status-badge connected">CONNECTED</span>
-                </div>
-            </div>
+                        <!-- Right: Details and Images -->
+                        <div class="history-detail-section">
+                            <div class="detail-top-bar">
+                                <div class="detail-header-info">
+                                    <div class="info-item">
+                                        <span class="label">ID Frame</span>
+                                        <span id="hist-detail-frame" class="value">--</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Model</span>
+                                        <span id="hist-detail-model" class="value">--</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Check Date</span>
+                                        <span id="hist-detail-date" class="value">--</span>
+                                    </div>
+                                </div>
 
-            <div class="info-group">
-                <div class="info-row">
-                    <span class="label">Frame</span>
-                    <span class="value accent">4I</span>
-                </div>
-                <div class="info-row">
-                    <span class="label">Model</span>
-                    <span class="value accent">PCX 160</span>
-                </div>
-            </div>
+                                <div class="detail-camera-nav">
+                                    <button class="cam-btn active" data-cam="right">Right Camera</button>
+                                    <button class="cam-btn" data-cam="upper">Upper Camera</button>
+                                    <button class="cam-btn" data-cam="left">Left Camera</button>
+                                </div>
+                            </div>
 
-            <div class="final-result-group">
-                <span class="result-label">Final Result</span>
-                <div class="result-display pending" id="final-result">
-                    -
-                </div>
-            </div>
-        </section>
+                            <div class="detail-result-banner">
+                                <span class="label">Final Result</span>
+                                <div id="hist-detail-result" class="result-display pending">-</div>
+                            </div>
 
-        <!-- Image Monitoring Section -->
-        <section class="image-panel">
-            <!-- Right Camera -->
-            <div class="img-column">
-                <img id="img-right-step1" src="" alt="Right Step 1" class="live-feed">
-                <img id="img-right-step2" src="" alt="Right Step 2" class="live-feed">
-            </div>
-
-            <!-- Upper Camera -->
-            <div class="img-column">
-                <img id="img-upper-step1" src="" alt="Upper Step 1" class="live-feed">
-                <img id="img-upper-step2" src="" alt="Upper Step 2" class="live-feed">
-            </div>
-
-            <!-- Left Camera -->
-            <div class="img-column">
-                <img id="img-left-step1" src="" alt="Left Step 1" class="live-feed">
-                <img id="img-left-step2" src="" alt="Left Step 2" class="live-feed">
-            </div>
-        </section>
-
-        <!-- Inspection Grid -->
-        <section class="inspection-grid">
-            <!-- Right Camera -->
-            <div class="camera-column">
-                <div class="column-header">
-                    <h3>Right Camera</h3>
-                    <span id="header-status-right" class="column-status pending">-</span>
-                </div>
-                <div class="list-container">
-                    <ul class="inspection-list" id="list-right">
-                        <li><span class="item-index">1</span><span class="item-name">NUT FLANGE 6MM
-                                GROUNDING</span><span class="item-status pending"
-                                id="status-NUT_FLANGE_6MM_GROUNDING">-</span></li>
-                        <li><span class="item-index">2</span><span class="item-name">BOLT FIXING RADIATOR
-                                RESERVE</span><span class="item-status pending"
-                                id="status-BOLT_FIXING_RADIATOR_RESERVE">-</span></li>
-                        <li><span class="item-index">3</span><span class="item-name">BOLT AXLE FRONT WHEEL</span><span
-                                class="item-status pending" id="status-BOLT_AXLE_FRONT_WHEEL">-</span></li>
-                        <li><span class="item-index">4</span><span class="item-name">BF 10X55 LINK ASSY ENG HANGER
-                                R</span><span class="item-status pending"
-                                id="status-BF_10X55_LINK_ASSY_ENG_HANGER_R">-</span></li>
-                        <li><span class="item-index">5</span><span class="item-name">BF 10X38 REAR CUSHION R</span><span
-                                class="item-status pending" id="status-BF_10X38_REAR_CUSHION_R">-</span></li>
-                        <li><span class="item-index">6</span><span class="item-name">BF 10X65 MUFFLER CENTER
-                                (UPPER)</span><span class="item-status pending"
-                                id="status-BF_10X65_MUFFLER_CENTER_UPPER">-</span></li>
-                        <li><span class="item-index">7</span><span class="item-name">BF 10X65 MUFFLER REAR
-                                (UNDER)</span><span class="item-status pending"
-                                id="status-BF_10X65_MUFFLER_REAR_UNDER">-</span></li>
-                        <li><span class="item-index">8</span><span class="item-name">BF 10X65 MUFFLER FRONT
-                                (UNDER)</span><span class="item-status pending"
-                                id="status-BF_10X65_MUFFLER_FRONT_UNDER">-</span></li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Upper Camera (Moved to Middle) -->
-            <div class="camera-column">
-                <div class="column-header">
-                    <h3>Upper Camera</h3>
-                    <span id="header-status-upper" class="column-status pending">-</span>
-                </div>
-                <div class="list-container">
-                    <ul class="inspection-list" id="list-upper">
-                        <li><span class="item-index">1</span><span class="item-name">BS 6X18 FENDER C REAR
-                                (FRONT)</span><span class="item-status pending"
-                                id="status-BS_6X18_FENDER_C_REAR_FRONT">-</span></li>
-                        <li><span class="item-index">2</span><span class="item-name">BS 6X18 FENDER C REAR
-                                (REAR)</span><span class="item-status pending"
-                                id="status-BS_6X18_FENDER_C_REAR_REAR">-</span></li>
-                    </ul>
+                            <div class="detail-content">
+                                <div class="detail-list-panel">
+                                    <div class="column-header">
+                                        <h3 id="hist-cam-title">Right Camera</h3>
+                                        <span id="hist-cam-status" class="column-status pending">-</span>
+                                    </div>
+                                    <div class="list-container">
+                                        <ul class="inspection-list" id="hist-inspection-list">
+                                            <!-- List injected by JS -->
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="detail-image-panel">
+                                    <!-- Image from history_images -->
+                                    <div class="hist-img-container">
+                                        <img id="hist-image-step1" src="" alt="Capture 1" class="hist-img">
+                                        <img id="hist-image-step2" src="" alt="Capture 2" class="hist-img">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Left Camera (Moved to Right) -->
-            <div class="camera-column">
-                <div class="column-header">
-                    <h3>Left Camera</h3>
-                    <span id="header-status-left" class="column-status pending">-</span>
+            <!-- Footer -->
+            <footer class="app-footer">
+                <div class="creator-info">
+                    Created By: <span class="vendor-name">PT. Electrindo Inti Dinamika</span>
                 </div>
-                <div class="list-container">
-                    <ul class="inspection-list" id="list-left">
-                        <li><span class="item-index">1</span><span class="item-name">NUT FRONT AXLE 12MM</span><span
-                                class="item-status pending" id="status-NUT_FRONT_AXLE_12MM">-</span></li>
-                        <li><span class="item-index">2</span><span class="item-name">BOLT TORX 8X28 CALIPER
-                                (UNDER)</span><span class="item-status pending"
-                                id="status-BOLT_TORX_8X28_CALIPER_UNDER">-</span></li>
-                        <li><span class="item-index">3</span><span class="item-name">BOLT TORX 8X28 CALIPER
-                                (UPPER)</span><span class="item-status pending"
-                                id="status-BOLT_TORX_8X28_CALIPER_UPPER">-</span></li>
-                        <li><span class="item-index">4</span><span class="item-name">BF 8X12 HORN COMP</span><span
-                                class="item-status pending" id="status-BF_8X12_HORN_COMP">-</span></li>
-                        <li><span class="item-index">5</span><span class="item-name">BOLT SIDE STAND PIVOT</span><span
-                                class="item-status pending" id="status-BOLT_SIDE_STAND_PIVOT">-</span></li>
-                        <li><span class="item-index">6</span><span class="item-name">BF 6X12 CLAMP THROTTLE
-                                CABLE</span><span class="item-status pending"
-                                id="status-BF_6X12_CLAMP_THROTTLE_CABLE">-</span></li>
-                        <li><span class="item-index">7</span><span class="item-name">BF 10X55 LINK ASSY ENG HANGER
-                                L</span><span class="item-status pending"
-                                id="status-BF_10X55_LINK_ASSY_ENG_HANGER_L">-</span></li>
-                        <li><span class="item-index">8</span><span class="item-name">BF 10X38 REAR CUSHION L</span><span
-                                class="item-status pending" id="status-BF_10X38_REAR_CUSHION_L">-</span></li>
-                        <li><span class="item-index">9</span><span class="item-name">BOLT WASHER 6X12 REAR
-                                FENDER</span><span class="item-status pending"
-                                id="status-BOLT_WASHER_6X12_REAR_FENDER">-</span></li>
-                        <li><span class="item-index">10</span><span class="item-name">BF 10x255 LINK ASSY ENG HANGER
-                                L</span><span class="item-status pending"
-                                id="status-BF_10X255_LINK_ASSY_ENG_HANGER_L">-</span></li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer class="app-footer">
-            <div class="creator-info">
-                Created By: <span class="vendor-name">PT. Electrindo Inti Dinamika</span>
-            </div>
-        </footer>
+            </footer>
+        </main>
     </div>
     <script src="main.js"></script>
 </body>

@@ -2,6 +2,9 @@ import threading
 import json
 import base64
 import cv2
+import os
+import uuid
+from datetime import datetime
 
 class StateManager:
     _instance = None
@@ -29,6 +32,8 @@ class StateManager:
             "model": "PCX 160",  # Hardcoded for now
             "final_result": "-"
         }
+        
+        self.current_frame_id = "MH1" + uuid.uuid4().hex[:12].upper()
         
         # Bolt List & Statuses using descriptive IDs
         self.bolt_data = {
@@ -64,12 +69,18 @@ class StateManager:
         self.bolt_statuses = {bolt: "-" for sublist in self.bolt_data.values() for bolt in sublist}
         
         # Images (Base64 strings)
+        # Images (Base64 strings for frontend, File paths for DB)
         # 6 slots: 3 cameras * 2 steps
         self.images = {
             "right_step1": None, "right_step2": None,
             "upper_step1": None, "upper_step2": None,
             "left_step1": None,  "left_step2": None
         }
+        self.image_paths = {k: None for k in self.images}
+        
+        # Ensure history directory exists
+        self.history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history_images")
+        os.makedirs(self.history_dir, exist_ok=True)
 
     def reset(self):
         with self.lock:
@@ -79,8 +90,11 @@ class StateManager:
             self.system_status["final_result"] = "-"
             self.system_status["unit_present"] = False
             
+            self.current_frame_id = "MH1" + uuid.uuid4().hex[:12].upper()
+            
             # Reset all image slots
             self.images = {k: None for k in self.images}
+            self.image_paths = {k: None for k in self.images}
 
     def update_bolt_status(self, bolt_id, status):
         with self.lock:
@@ -93,6 +107,15 @@ class StateManager:
             for bolt_id, status in self.bolt_statuses.items():
                 if status == "-":
                     self.bolt_statuses[bolt_id] = "NG"
+                    
+            # Return payload for DB save
+            return {
+                 "frame_id": self.current_frame_id, # Use strictly generated ID
+                 "model": self.system_status["model"],
+                 "final_result": "OK" if "NG" not in self.bolt_statuses.values() else "NG",
+                 "bolt_data": dict(self.bolt_statuses),
+                 "images": dict(self.image_paths)
+            }
                 
     def update_image(self, camera_key, step, frame):
         """
@@ -101,13 +124,33 @@ class StateManager:
         step: 1 or 2
         """
         if frame is not None:
-            _, buffer = cv2.imencode('.jpg', frame)
+            # Save full-res file to disk for history
+            side_dir = os.path.join(self.history_dir, camera_key)
+            os.makedirs(side_dir, exist_ok=True)
+            capture_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"{self.current_frame_id}-{camera_key}_step_{step}-{capture_time}.jpg"
+            filepath = os.path.join(side_dir, filename)
+            cv2.imwrite(filepath, frame)
+            
+            # Downscale for live dashboard to reduce bandwidth/latency
+            # Max width 640px is plenty for dashboard display
+            h, w = frame.shape[:2]
+            max_w = 640
+            if w > max_w:
+                scale = max_w / w
+                display_frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
+            else:
+                display_frame = frame
+
+            _, buffer = cv2.imencode('.jpg', display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
             b64_str = base64.b64encode(buffer).decode('utf-8')
             storage_key = f"{camera_key}_step{step}"
-            
+
             with self.lock:
                 if storage_key in self.images:
                     self.images[storage_key] = f"data:image/jpeg;base64,{b64_str}"
+                    # Store relative filepath to history_images folder
+                    self.image_paths[storage_key] = f"{camera_key}/{filename}"
 
     def get_full_state(self):
         with self.lock:

@@ -5,6 +5,7 @@ __pycache__/
 
 # Application Specific
 backend/test_images/
+history_images/
 *.pt
 
 # Environment
