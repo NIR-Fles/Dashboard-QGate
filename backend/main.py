@@ -52,7 +52,7 @@ logger.info(f"System Starting in Mode: {SYSTEM_MODE}")
 
 # Global Components
 state_manager = StateManager()
-modbus = get_modbus_handler(SYSTEM_MODE)
+modbus = get_modbus_handler(SYSTEM_MODE, state_manager=state_manager)
 camera = get_camera_handler(SYSTEM_MODE, base_dir=test_images_path)
 yolo = get_yolo_processor(SYSTEM_MODE, model_path=model_path)
 ocr = get_ocr_processor(SYSTEM_MODE)

@@ -104,6 +104,24 @@ function updateMonitoringDashboard(state) {
     if (!elements.tabs.monitoring.classList.contains('active')) return;
 
     try {
+        // 0. Update System Status (PLC)
+        if (state.system) {
+            const plcBadge = document.getElementById('plc-status');
+            if (plcBadge) {
+                if (state.system.plc_connected) {
+                    if (plcBadge.textContent !== 'CONNECTED') {
+                        plcBadge.textContent = 'CONNECTED';
+                        plcBadge.className = 'status-badge connected';
+                    }
+                } else {
+                    if (plcBadge.textContent !== 'DISCONNECTED') {
+                        plcBadge.textContent = 'DISCONNECTED';
+                        plcBadge.className = 'status-badge disconnected';
+                    }
+                }
+            }
+        }
+
         // 1. Update Images
         if (state.images) {
             for (const [key, b64] of Object.entries(state.images)) {

@@ -285,6 +285,11 @@ body {
     color: #004d00;
 }
 
+.status-badge.disconnected {
+    background-color: var(--status-red);
+    color: #4d0000;
+}
+
 .action-buttons {
     display: flex;
     gap: 0.5rem;

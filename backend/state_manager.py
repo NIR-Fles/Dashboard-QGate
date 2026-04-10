@@ -82,6 +82,10 @@ class StateManager:
         self.history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history_images")
         os.makedirs(self.history_dir, exist_ok=True)
 
+    def set_plc_connected(self, status: bool):
+        with self.lock:
+            self.system_status["plc_connected"] = status
+
     def reset(self):
         with self.lock:
             for key in self.bolt_statuses:
