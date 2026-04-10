@@ -1,127 +1,121 @@
 import logging
-import random
-import time
-
-try:
-    from pymodbus.client import ModbusTcpClient
-except ImportError:
-    ModbusTcpClient = None
+import asyncio
+import threading
+from pymodbus.server import StartTcpServer
+from pymodbus.datastore import ModbusSequentialDataBlock, ModbusDeviceContext, ModbusServerContext
 
 logger = logging.getLogger("modbus_handler")
 
-# Abstract Base Class
-class ModbusHandlerBase:
-    def __init__(self, host="127.0.0.1", port=5020):
+# Mapping of integer values to trigger names (For use on Modbus Holding Register Address 1)
+TRIGGER_VALUES = {
+    1: "unit_enter",
+    2: "capture_step_1",
+    3: "capture_step_2",
+    4: "unit_exit"
+}
+
+VALID_TRIGGERS = list(TRIGGER_VALUES.values())
+
+class TriggerDataBlock(ModbusSequentialDataBlock):
+    """
+    Custom Modbus DataBlock that intercepts WRITE commands from the PLC.
+    When the PLC writes a value to address 1, it triggers our internal event.
+    """
+    def __init__(self, address, values, callback):
+        super().__init__(address, values)
+        self.callback = callback
+
+    def setValues(self, address, values):
+        # Call the original method to save the data
+        super().setValues(address, values)
+        
+        # We only care about writing to holding register address 1
+        if address == 1 and values:
+            val = values[0]
+            if val in TRIGGER_VALUES:
+                # Trigger the callback
+                self.callback(address, val)
+                
+                # Auto-reset the register value to 0 to acknowledge the command
+                # and prepare for the next trigger event
+                super().setValues(1, [0])
+
+class ModbusHandler:
+    """
+    Unified Modbus Handler.
+    - Exposes a 'read_triggers()' method for main.py's control loop.
+    - Exposes a 'set_mock_signal()' for the /debug/trigger API (curl commands).
+    - Can optionally run an asynchronous ModbusTCP Server in a background thread to listen for a real PLC.
+    """
+    def __init__(self, mode="MOCK", host="0.0.0.0", port=5020):
+        self.mode = mode
         self.host = host
         self.port = port
-        self.addresses = {
-            "unit_enter": 0,
-            "unit_exit": 1,
-            "capture_step_1": 2,
-            "capture_step_2": 3
-        }
-    
-    def connect(self):
-        raise NotImplementedError
-    
-    def read_triggers(self):
-        raise NotImplementedError
+        self.addresses = VALID_TRIGGERS  # Exposed for main.py curl command validation
         
-    def set_mock_signal(self, register_name):
-        logger.warning("set_mock_signal called on non-mock handler")
-
-# Mock Implementation
-class MockModbusHandler(ModbusHandlerBase):
-    def __init__(self, host="127.0.0.1", port=5020):
-        super().__init__(host, port)
-        self._mock_registers = [0, 0, 0, 0]
-        self.connected = False
-
-    def connect(self):
-        self.connected = True
-        logger.info("MOCK Modbus: Connected.")
-        return True
-
-    def read_triggers(self):
-        result = {
-            "unit_enter": False,
-            "unit_exit": False,
-            "capture_step_1": False,
-            "capture_step_2": False
-        }
+        # Internal state to hold triggered events
+        self.lock = threading.Lock()
+        self._triggers = {k: False for k in self.addresses}
         
-        result["unit_enter"] = self._mock_registers[0] > 0
-        result["unit_exit"] = self._mock_registers[1] > 0
-        result["capture_step_1"] = self._mock_registers[2] > 0
-        result["capture_step_2"] = self._mock_registers[3] > 0
+        # We only start the real Modbus Server in TEST or REAL mode
+        # In MOCK mode, we skip starting the server to avoid occupying the port
+        if mode in ["TEST", "REAL"]:
+            self.start_server_thread()
+        else:
+            logger.info("Modbus Handler initialized in pure MOCK mode (No Network Server).")
+
+    def _on_plc_write(self, address, value):
+        """Callback invoked when the PLC (Master) writes to our Holding Registers."""
+        logger.info(f"Modbus SERVER received write at address {address} with value {value}")
         
-        # Auto-reset
-        for i in range(4):
-            self._mock_registers[i] = 0
+        if address == 1 and value in TRIGGER_VALUES:
+            trigger_name = TRIGGER_VALUES[value]
+            with self.lock:
+                self._triggers[trigger_name] = True
+            logger.info(f"PLC Modbus Signal Triggered [Value {value}]: {trigger_name}")
+
+    def start_server_thread(self):
+        """Starts the PyModbus Async TCP Server in a separate background thread so it doesn't block FastAPI."""
+        logger.info(f"Starting Modbus TCP SERVER on {self.host}:{self.port} (Background Thread)...")
+        
+        def run_server():
+            # Initialize Data Store
+            # Address 0 to 9, initialized with 0
+            datablock = TriggerDataBlock(0, [0] * 10, self._on_plc_write)
+            store = ModbusDeviceContext(
+                hr=datablock # Holding Registers
+            )
+            context = ModbusServerContext(devices=store, single=True)
             
-        return result
+            # Start the TCP server correctly via pymodbus helper
+            try:
+                StartTcpServer(context=context, address=(self.host, self.port))
+            except Exception as e:
+                logger.error(f"Failed to start Modbus Server: {e}")
+                
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
 
     def set_mock_signal(self, register_name):
+        """Used by the /debug/trigger API (curl commands) to securely inject a fake signal."""
         if register_name in self.addresses:
-            idx = self.addresses[register_name]
-            self._mock_registers[idx] = 1
-            logger.info(f"MOCK Signal Triggered: {register_name}")
-
-# Real Implementation
-class RealModbusHandler(ModbusHandlerBase):
-    def __init__(self, host="127.0.0.1", port=5020):
-        super().__init__(host, port)
-        self.client = None
-        self.connected = False
-        
-        if ModbusTcpClient is None:
-            logger.error("pymodbus not installed! Real mode will fail.")
-
-    def connect(self):
-        if ModbusTcpClient:
-            self.client = ModbusTcpClient(self.host, port=self.port)
-            self.connected = self.client.connect()
-            if self.connected:
-                logger.info(f"REAL Modbus: Connected to {self.host}:{self.port}")
-            else:
-                logger.error(f"REAL Modbus: Failed to connect to {self.host}:{self.port}")
-            return self.connected
-        return False
+            with self.lock:
+                self._triggers[register_name] = True
+            logger.info(f"API/Mock Signal Triggered: {register_name}")
 
     def read_triggers(self):
-        if not self.connected:
-            self.connect()
-
-        result = {
-            "unit_enter": False,
-            "unit_exit": False,
-            "capture_step_1": False,
-            "capture_step_2": False
-        }
-        
-        if not self.connected or not self.client:
-            return result
-            
-        try:
-            rr = self.client.read_holding_registers(0, 4)
-            if not rr.isError():
-                regs = rr.registers
-                result["unit_enter"] = regs[0] > 0
-                result["unit_exit"] = regs[1] > 0
-                result["capture_step_1"] = regs[2] > 0
-                result["capture_step_2"] = regs[3] > 0
-        except Exception as e:
-            logger.error(f"Modbus Read Error: {e}")
-            self.connected = False
-            
+        """
+        Consumed by main.py's control loop. 
+        Returns current triggers and resets them immediately (OR logic).
+        """
+        result = {}
+        with self.lock:
+            for k, v in self._triggers.items():
+                result[k] = v
+                self._triggers[k] = False # Auto-reset after read
+                
         return result
 
-# Factory Function
-def get_modbus_handler(mode="MOCK", host="127.0.0.1", port=5020):
-    if mode == "REAL":
-        logger.info("Initializing REAL Modbus Handler")
-        return RealModbusHandler(host, port)
-    else:
-        # Mock serves both MOCK and TEST modes for PLC signals
-        logger.info(f"Initializing MOCK Modbus Handler (Mode: {mode})")
-        return MockModbusHandler(host, port)
+def get_modbus_handler(mode="MOCK", host="0.0.0.0", port=5020):
+    # We bind to 0.0.0.0 to allow external network connections (e.g. from a real PLC)
+    return ModbusHandler(mode=mode, host=host, port=port)

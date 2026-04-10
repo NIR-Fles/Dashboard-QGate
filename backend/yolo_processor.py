@@ -40,9 +40,18 @@ class MockYoloProcessor(YoloProcessorBase):
         ]
         
         for bolt in all_bolts:
-            if random.random() > 0.2: # 80% chance of detection
+            if random.random() > 0.1: # high chance for monitoring
                 detected.append(bolt)
-        return detected, frame
+
+        details = []
+        # Add a fake FRAME_ID detection so we can test the crop logic
+        if frame is not None:
+            details.append({
+                "label": "FRAME_ID",
+                "box": [100, 100, 300, 200]
+            })
+            
+        return detected, frame, details
 
 # Real Implementation
 class RealYoloProcessor(YoloProcessorBase):
@@ -63,6 +72,7 @@ class RealYoloProcessor(YoloProcessorBase):
             return [], frame
             
         detected = []
+        detection_details = [] # Store raw details like boxes for cropping
         annotated_frame = frame
         try:
             results = self.model(frame)
@@ -74,6 +84,12 @@ class RealYoloProcessor(YoloProcessorBase):
                      # Format the label to match our dashboard IDs...
                      formatted_label = raw_label.replace(" ", "_").replace("(", "").replace(")", "").upper()
                      detected.append(formatted_label)
+
+                     # Store box coordinates for cropping (xyxy format)
+                     detection_details.append({
+                         "label": formatted_label,
+                         "box": box.xyxy[0].tolist() 
+                     })
                      
                 # Extract the image with drawn bounding boxes
                 annotated_frame = result.plot()
@@ -81,7 +97,7 @@ class RealYoloProcessor(YoloProcessorBase):
         except Exception as e:
             logger.error(f"YOLO Inference Error: {e}")
             
-        return detected, annotated_frame
+        return detected, annotated_frame, detection_details
 
 # Factory Function
 def get_yolo_processor(mode="MOCK", model_path="best.pt"):

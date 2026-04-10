@@ -33,7 +33,7 @@ class StateManager:
             "final_result": "-"
         }
         
-        self.current_frame_id = "MH1" + uuid.uuid4().hex[:12].upper()
+        self.current_frame_id = "-"
         
         # Bolt List & Statuses using descriptive IDs
         self.bolt_data = {
@@ -90,11 +90,20 @@ class StateManager:
             self.system_status["final_result"] = "-"
             self.system_status["unit_present"] = False
             
-            self.current_frame_id = "MH1" + uuid.uuid4().hex[:12].upper()
+            self.current_frame_id = "-"
             
             # Reset all image slots
             self.images = {k: None for k in self.images}
             self.image_paths = {k: None for k in self.images}
+
+    def generate_frame_id(self):
+        with self.lock:
+            if self.current_frame_id == "-":
+                self.current_frame_id = "MH1" + uuid.uuid4().hex[:12].upper()
+
+    def set_frame_id(self, frame_id):
+        with self.lock:
+            self.current_frame_id = frame_id
 
     def update_bolt_status(self, bolt_id, status):
         with self.lock:
@@ -167,6 +176,7 @@ class StateManager:
                     final = "OK"
                 
             self.system_status["final_result"] = final
+            self.system_status["frame_id"] = self.current_frame_id
 
             return {
                 "system": self.system_status,

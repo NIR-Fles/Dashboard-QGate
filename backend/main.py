@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from modbus_handler import get_modbus_handler
 from camera_handler import get_camera_handler
 from yolo_processor import get_yolo_processor
+from ocr_processor import get_ocr_processor
 from state_manager import StateManager
 from database import init_db, save_inspection, get_history
 
@@ -54,6 +55,7 @@ state_manager = StateManager()
 modbus = get_modbus_handler(SYSTEM_MODE)
 camera = get_camera_handler(SYSTEM_MODE, base_dir=test_images_path)
 yolo = get_yolo_processor(SYSTEM_MODE, model_path=model_path)
+ocr = get_ocr_processor(SYSTEM_MODE)
 
 # Websocket Connection Manager
 class ConnectionManager:
@@ -89,15 +91,6 @@ def control_loop():
             # 1. Read Modbus Triggers
             triggers = modbus.read_triggers()
             
-            # Handle Unit Enter/Exit
-            if triggers["unit_enter"]:
-                logger.info("Unit ENTER signal received.")
-                state_manager.system_status["unit_present"] = True
-                
-            if triggers["unit_exit"]:
-                logger.info("Unit EXIT signal received. Resetting state.")
-                state_manager.reset()
-
             # 2. Handle Capture Logic
             if triggers["capture_step_1"] or triggers["capture_step_2"]:
                 step = 1 if triggers["capture_step_1"] else 2
@@ -109,14 +102,70 @@ def control_loop():
                 
                 # Run Detection and Update State with Annotated Images
                 detected_bolts = []
+                upper_detection_details = []
+                temp_annotated_frames = {}
+                
                 for cam_key, frame in frames.items():
                     if frame is not None:
-                        # Process frame and get the image with bounding boxes
-                        bolts, annotated_img = yolo.process(frame)
+                        # Process frame and get image with bounding boxes + raw info
+                        bolts, annotated_img, details = yolo.process(frame)
                         detected_bolts.extend(bolts)
-                        state_manager.update_image(cam_key, step, annotated_img)
+                        temp_annotated_frames[cam_key] = annotated_img
+                        
+                        if cam_key == "upper":
+                            upper_detection_details = details
                     else:
-                        state_manager.update_image(cam_key, step, None)
+                        temp_annotated_frames[cam_key] = None
+
+                # Perform OCR to read Frame ID if Step = 1
+                if step == 1:
+                    logger.info("Attempting to read Frame ID via Crop + OCR.")
+                    extracted_id = None
+                    
+                    # Look for FRAME_ID or similar label in the detections
+                    frame_id_info = next((d for d in upper_detection_details if "FRAME_ID" in d["label"]), None)
+                    
+                    if frame_id_info and frames.get("upper") is not None:
+                        try:
+                            upper_img = frames["upper"]
+                            h, w = upper_img.shape[:2]
+                            logger.info(f"Upper Frame Resolution: {w}x{h}")
+                            
+                            # d["box"] is [x1, y1, x2, y2]
+                            box = frame_id_info["box"]
+                            x1, y1, x2, y2 = map(int, box)
+                            
+                            # Bounds checking
+                            x1, y1 = max(0, x1), max(0, y1)
+                            x2, y2 = min(w, x2), min(h, y2)
+                            
+                            if x2 > x1 and y2 > y1:
+                                # Add a small margin
+                                margin = 15
+                                x1_m = max(0, x1 - margin)
+                                y1_m = max(0, y1 - margin)
+                                x2_m = min(w, x2 + margin)
+                                y2_m = min(h, y2 + margin)
+                                
+                                crop = upper_img[y1_m:y2_m, x1_m:x2_m]
+                                logger.info(f"Targeting OCR Crop: Label={frame_id_info['label']} Crop Shape={crop.shape}")
+                                extracted_id = ocr.process(crop)
+                            else:
+                                logger.warning(f"Invalid crop coordinates: {x1, y1, x2, y2} for frame {w}x{h}")
+                        except Exception as e:
+                            logger.error(f"Error during OCR cropping: {e}")
+                    
+                    if extracted_id:
+                        logger.info(f"OCR Success. Frame ID Set: {extracted_id}")
+                        state_manager.set_frame_id(extracted_id)
+                    else:
+                        logger.warning("OCR Failed (or no Frame ID label detected). Generating Fallback UUID.")
+                        state_manager.generate_frame_id()
+
+                # Now that Frame ID is set (for Step 1) or already exists (for Step 2),
+                # save and update the images.
+                for cam_key, annotated_img in temp_annotated_frames.items():
+                    state_manager.update_image(cam_key, step, annotated_img)
                 
                 # Deduplicate the list (in case a bolt is seen by multiple cameras)
                 detected_bolts = list(set(detected_bolts))
@@ -140,6 +189,15 @@ def control_loop():
                         bolt_data=db_payload["bolt_data"],
                         images=db_payload["images"]
                     )
+
+            # 3. Handle Unit Enter/Exit (Exit MUST happen after save)
+            if triggers["unit_enter"]:
+                logger.info("Unit ENTER signal received.")
+                state_manager.system_status["unit_present"] = True
+                
+            if triggers["unit_exit"]:
+                logger.info("Unit EXIT signal received. Resetting state.")
+                state_manager.reset()
 
             time.sleep(0.1) # Prevent CPU hogging
             

@@ -6,3 +6,5 @@ pymodbus
 websockets
 numpy
 aiofiles
+paddlepaddle
+paddleocr
