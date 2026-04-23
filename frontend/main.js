@@ -353,6 +353,13 @@ function updateHistoryDetailPanel() {
 
 // --- Engine Toggle API ---
 async function toggleEngine() {
+    // Permission Check
+    const pin = prompt("Enter Passcode to Change Machine State:");
+    if (pin !== 'admin') {
+        alert("Unauthorized Access. State change cancelled.");
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_URL}/engine/toggle`, { method: 'POST' });
         const data = await response.json();
@@ -364,7 +371,12 @@ async function toggleEngine() {
 
 // --- System Quit API ---
 async function quitSystem() {
-    if (!confirm("Stop all services and quit the application?")) return;
+    // Permission Check
+    const pin = prompt("Enter Passcode to Terminate System:");
+    if (pin !== 'admin') {
+        alert("Unauthorized Access. Shutdown cancelled.");
+        return;
+    }
     
     try {
         const response = await fetch(`${API_URL}/system/quit`, { method: 'POST' });

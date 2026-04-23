@@ -97,7 +97,8 @@ def control_loop():
         try:
             # Check if system is unpaused/running
             if not state_manager.system_status["engine_active"]:
-                time.sleep(0.5) # Sleep longer when idle
+                modbus.read_triggers() # FLUSH/IGNORE all incoming triggers for safety
+                time.sleep(0.5) 
                 continue
 
             # 1. Read Modbus Triggers
