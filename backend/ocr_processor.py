@@ -33,12 +33,19 @@ class RealOcrProcessor(OcrProcessorBase):
                 os.environ['FLAGS_enable_pir_in_executor'] = '0'
                 os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
                 
-                # Using arguments compatible with the installed PaddleX-based version
-                # device='cpu' and enable_mkldnn=False to avoid the PIR/oneDNN bug
+                # Absolute local paths to ensure zero internet dependence
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                # Correct Path: inside the .paddlex hidden folder
+                local_model_path = os.path.join(base_dir, ".paddlex", "official_models")
+                
                 self.ocr = PaddleOCR(
-                    use_textline_orientation=False, 
-                    lang='en', 
-                    ocr_version='PP-OCRv4',
+                    use_doc_orientation_classify=False,
+                    use_doc_unwarping=False,
+                    det_model_dir=os.path.join(local_model_path, "PP-OCRv4_mobile_det"),
+                    rec_model_dir=os.path.join(local_model_path, "en_PP-OCRv4_mobile_rec"),
+                    ocr_version='PP-OCRv4', # MATCH the folders exactly
+                    use_angle_cls=False, 
+                    lang='en',
                     device='cpu',
                     enable_mkldnn=False
                 )

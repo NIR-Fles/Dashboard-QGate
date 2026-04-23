@@ -8,6 +8,7 @@ backend/test_images/
 history_images/
 *.pt
 *.db
+.paddlex/
 
 # Environment
 .venv/

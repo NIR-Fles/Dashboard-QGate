@@ -5,9 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bolt Monitoring Dashboard - Quality Gate System</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <!-- Local Styling -->
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -16,12 +15,15 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <img src="https://electrindoid.com/favicon.svg" alt="Logo" class="sidebar-logo">
+                <img src="logo.svg" alt="Logo" class="sidebar-logo">
             </div>
             <nav class="sidebar-nav">
                 <button class="nav-btn active" id="btn-monitoring">Monitoring</button>
                 <button class="nav-btn" id="btn-history">History</button>
             </nav>
+            <div class="sidebar-footer">
+                <button class="nav-btn quit-btn" id="btn-quit">QUIT</button>
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -47,9 +49,10 @@
                                 <span class="label">PLC</span>
                                 <span id="plc-status" class="status-badge connected">CONNECTED</span>
                             </div>
-                            <div class="status-row">
-                                <span class="label">Database</span>
-                                <span id="db-status" class="status-badge connected">CONNECTED</span>
+                            <div class="status-row engine-control">
+                                <span class="label">Machine</span>
+                                <span id="machine-status" class="status-badge stopped">STOPPED</span>
+                                <button id="btn-toggle-engine" class="engine-toggle-btn start">START</button>
                             </div>
                         </div>
 

@@ -86,12 +86,50 @@ function switchTab(tabId) {
     }
 }
 
+// --- WS Performance Analytics (For Research Logging) ---
+let ws_totalLatency = 0;
+let ws_messageCount = 0;
+let ws_maxLatency = 0;
+let ws_lastLatency = -1;
+let ws_totalJitter = 0;
+
 // --- WebSocket Monitoring ---
 function connectWebSocket() {
     const socket = new WebSocket(WS_URL);
     socket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            
+            // --- Research Paper Analytics Calculation ---
+            if (data.timestamp) {
+                const clientTime = Date.now() / 1000;
+                let latency = (clientTime - data.timestamp) * 1000;
+                
+                // Keep it grounded in case of minor NTP clock desync between backend and browser
+                if (latency < 0) latency = 1.0; 
+
+                ws_totalLatency += latency;
+                ws_messageCount++;
+                if (latency > ws_maxLatency) ws_maxLatency = latency;
+
+                // Calculate Jitter (Absolute difference between consecutive latencies)
+                if (ws_lastLatency !== -1) {
+                    const currentJitter = Math.abs(latency - ws_lastLatency);
+                    ws_totalJitter += currentJitter;
+                }
+                ws_lastLatency = latency;
+
+                // Log a summary every 50 packets (~10 Seconds)
+                if (ws_messageCount % 50 === 0) {
+                    console.log(`%c--- WS Performance Report (${ws_messageCount} Packets) ---`, 'color: #01B763; font-weight: bold;');
+                    console.log(`Avg Latency: ${(ws_totalLatency / ws_messageCount).toFixed(2)} ms`);
+                    console.log(`Max Latency: ${ws_maxLatency.toFixed(2)} ms`);
+                    console.log(`Avg Jitter:  ${(ws_totalJitter / (ws_messageCount - 1)).toFixed(2)} ms`);
+                    
+                    // Reset interval stats if you want rolling averages, or leave it for cumulative
+                }
+            }
+
             updateMonitoringDashboard(data);
         } catch (e) {
             console.error("WS Error:", e);
@@ -105,19 +143,35 @@ function updateMonitoringDashboard(state) {
 
     try {
         // 0. Update System Status (PLC)
+        // 0. Update System Status
         if (state.system) {
+            // --- PLC Status ---
             const plcBadge = document.getElementById('plc-status');
             if (plcBadge) {
                 if (state.system.plc_connected) {
-                    if (plcBadge.textContent !== 'CONNECTED') {
-                        plcBadge.textContent = 'CONNECTED';
-                        plcBadge.className = 'status-badge connected';
-                    }
+                    plcBadge.textContent = 'CONNECTED';
+                    plcBadge.className = 'status-badge connected';
                 } else {
-                    if (plcBadge.textContent !== 'DISCONNECTED') {
-                        plcBadge.textContent = 'DISCONNECTED';
-                        plcBadge.className = 'status-badge disconnected';
-                    }
+                    plcBadge.textContent = 'DISCONNECTED';
+                    plcBadge.className = 'status-badge disconnected';
+                }
+            }
+            
+            // --- Machine Engine Status ---
+            const engineBadge = document.getElementById('machine-status');
+            const engineBtn = document.getElementById('btn-toggle-engine');
+            if (engineBadge && engineBtn) {
+                const isActive = state.system.engine_active;
+                if (isActive) {
+                    engineBadge.textContent = 'RUNNING';
+                    engineBadge.className = 'status-badge running';
+                    engineBtn.textContent = 'PAUSE';
+                    engineBtn.className = 'engine-toggle-btn pause';
+                } else {
+                    engineBadge.textContent = 'STOPPED';
+                    engineBadge.className = 'status-badge stopped';
+                    engineBtn.textContent = 'START';
+                    engineBtn.className = 'engine-toggle-btn start';
                 }
             }
         }
@@ -297,6 +351,38 @@ function updateHistoryDetailPanel() {
     elements.history.details.image2.src = img2 ? `/history_images/${img2}` : "";
 }
 
+// --- Engine Toggle API ---
+async function toggleEngine() {
+    try {
+        const response = await fetch(`${API_URL}/engine/toggle`, { method: 'POST' });
+        const data = await response.json();
+        console.log("Engine toggle result:", data);
+    } catch (e) {
+        console.error("Failed to toggle engine:", e);
+    }
+}
+
+// --- System Quit API ---
+async function quitSystem() {
+    if (!confirm("Stop all services and quit the application?")) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/system/quit`, { method: 'POST' });
+        const data = await response.json();
+        if (data.status === 'success') {
+            document.body.innerHTML = `
+                <div style="background: #111; color: #ff4d4d; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif;">
+                    <h1 style="font-size: 3rem; margin-bottom: 20px;">SYSTEM SHUTDOWN</h1>
+                    <p style="font-size: 1.5rem; color: #aaa;">The backend service has been terminated.</p>
+                    <p style="margin-top: 20px; color: #666;">You can safely close this browser window.</p>
+                </div>
+            `;
+        }
+    } catch (e) {
+        console.error("Failed to quit system:", e);
+    }
+}
+
 // --- Utils ---
 function updateDateTime() {
     const now = new Date();
@@ -309,6 +395,17 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDateTime();
     setInterval(updateDateTime, 1000);
     connectWebSocket();
+
+    // System Control Buttons
+    const engineToggleBtn = document.getElementById('btn-toggle-engine');
+    if (engineToggleBtn) {
+        engineToggleBtn.onclick = toggleEngine;
+    }
+
+    const quitBtn = document.getElementById('btn-quit');
+    if (quitBtn) {
+        quitBtn.onclick = quitSystem;
+    }
 
     // Event Listeners
     elements.navBtns.monitoring.onclick = () => switchTab('monitoring');

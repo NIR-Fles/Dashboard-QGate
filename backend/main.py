@@ -1,3 +1,10 @@
+import os
+os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
+# Force the AI to look at our local project folder for models
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+# Note: PADDLE_PDX_HOME should be the folder CONTAINING the .paddlex folder
+os.environ['PADDLE_PDX_HOME'] = backend_dir
+os.environ['PADDLE_HOME'] = backend_dir
 import asyncio
 import logging
 import threading
@@ -88,6 +95,11 @@ def control_loop():
     
     while True:
         try:
+            # Check if system is unpaused/running
+            if not state_manager.system_status["engine_active"]:
+                time.sleep(0.5) # Sleep longer when idle
+                continue
+
             # 1. Read Modbus Triggers
             triggers = modbus.read_triggers()
             
@@ -224,6 +236,26 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+@app.post("/api/engine/toggle")
+async def toggle_engine():
+    """Toggle the master start/stop state of the inspection engine."""
+    current = state_manager.system_status["engine_active"]
+    state_manager.system_status["engine_active"] = not current
+    status_text = "RUNNING" if not current else "STOPPED"
+    logger.info(f"Engine state toggled to: {status_text}")
+    return {"status": "success", "engine_active": not current}
+
+@app.post("/api/system/quit")
+async def quit_system():
+    """Remotely shut down the entire backend service."""
+    logger.info("SYSTEM QUIT: Shutdown requested from dashboard.")
+    def kill_soon():
+        time.sleep(0.5) # Give the web response time to send
+        os._exit(0)
+    
+    threading.Thread(target=kill_soon).start()
+    return {"status": "success", "message": "System shutting down..."}
 
 @app.post("/debug/trigger/{signal}")
 async def debug_trigger(signal: str):

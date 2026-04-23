@@ -5,6 +5,7 @@ import cv2
 import os
 import uuid
 from datetime import datetime
+import time
 
 class StateManager:
     _instance = None
@@ -28,8 +29,9 @@ class StateManager:
         # Initial State
         self.system_status = {
             "plc_connected": False,
+            "engine_active": False, # Master Switch: False = STOPPED, True = RUNNING
             "unit_present": False,
-            "model": "PCX 160",  # Hardcoded for now
+            "model": "PCX 160",
             "final_result": "-"
         }
         
@@ -184,6 +186,7 @@ class StateManager:
 
             return {
                 "system": self.system_status,
+                "timestamp": time.time(),
                 "bolt_data": self.bolt_data,
                 "statuses": self.bolt_statuses,
                 "images": self.images
