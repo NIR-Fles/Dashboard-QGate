@@ -395,6 +395,29 @@ async function quitSystem() {
     }
 }
 
+// --- Export CSV API ---
+async function exportCsv() {
+    // Permission Check
+    const pin = prompt("Enter Passcode to Export Data:");
+    if (pin !== 'admin') {
+        alert("Unauthorized Access. Export cancelled.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/export/csv`, { method: 'POST' });
+        const data = await response.json();
+        if (data.status === 'success') {
+            alert(`✅ Export successful!\n\nFile saved to:\n${data.file}`);
+        } else {
+            alert(`❌ Export failed: ${data.message}`);
+        }
+    } catch (e) {
+        console.error("Failed to export CSV:", e);
+        alert("❌ Export failed. Check server connection.");
+    }
+}
+
 // --- Utils ---
 function updateDateTime() {
     const now = new Date();
@@ -417,6 +440,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const quitBtn = document.getElementById('btn-quit');
     if (quitBtn) {
         quitBtn.onclick = quitSystem;
+    }
+
+    const exportCsvBtn = document.getElementById('btn-export-csv');
+    if (exportCsvBtn) {
+        exportCsvBtn.onclick = exportCsv;
     }
 
     // Event Listeners

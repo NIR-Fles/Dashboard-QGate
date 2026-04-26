@@ -677,6 +677,29 @@ body {
     flex-shrink: 0;
 }
 
+.search-export-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.search-export-row .filter-group {
+    flex: 1;
+}
+
+.export-csv-btn {
+    background-color: #2980b9;
+    white-space: nowrap;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.export-csv-btn:hover {
+    background-color: #3498db;
+}
+
 .history-filters {
     background-color: #272c36;
     padding: 1rem;

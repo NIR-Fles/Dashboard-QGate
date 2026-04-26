@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import csv
 import logging
 import os
 from datetime import datetime
@@ -87,3 +88,62 @@ def get_history(limit=50):
     except Exception as e:
         logger.error(f"Error retrieving history: {e}")
         return []
+
+def export_to_csv():
+    """
+    Exports the entire inspection database to a timestamped CSV file.
+    Each bolt status becomes its own column for easy analysis.
+    Returns the file path of the generated CSV.
+    """
+    try:
+        # --- Define export directory (project root / csv_export) ---
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        export_dir = os.path.join(project_root, "csv_export")
+        os.makedirs(export_dir, exist_ok=True) # Create folder if it doesn't exist
+
+        # --- Query all records from DB ---
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM inspections ORDER BY check_time ASC")
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            return None, "No data to export."
+
+        # --- Build rows and discover all unique bolt columns ---
+        records = []
+        all_bolt_keys = set()
+        for row in rows:
+            record = dict(row)
+            record['bolt_data'] = json.loads(record['bolt_data'])
+            record['images'] = json.loads(record['images'])
+            all_bolt_keys.update(record['bolt_data'].keys())
+            records.append(record)
+
+        # --- Define CSV columns ---
+        base_cols = ["id", "frame_id", "model", "check_time", "final_result"]
+        bolt_cols = sorted(list(all_bolt_keys))
+        all_cols = base_cols + bolt_cols
+
+        # --- Write to CSV file ---
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"inspection_export_{timestamp}.csv"
+        filepath = os.path.join(export_dir, filename)
+
+        with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=all_cols)
+            writer.writeheader()
+            for record in records:
+                row_data = {col: record.get(col, "") for col in base_cols}
+                for bolt in bolt_cols:
+                    row_data[bolt] = record['bolt_data'].get(bolt, "-")
+                writer.writerow(row_data)
+
+        logger.info(f"CSV exported successfully: {filepath}")
+        return filepath, None
+
+    except Exception as e:
+        logger.error(f"Error exporting to CSV: {e}")
+        return None, str(e)

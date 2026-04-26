@@ -9,6 +9,7 @@ history_images/
 *.pt
 *.db
 .paddlex/
+csv_export/
 
 # Environment
 .venv/

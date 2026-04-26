@@ -20,7 +20,7 @@ from camera_handler import get_camera_handler
 from yolo_processor import get_yolo_processor
 from ocr_processor import get_ocr_processor
 from state_manager import StateManager
-from database import init_db, save_inspection, get_history
+from database import init_db, save_inspection, get_history, export_to_csv
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -203,6 +203,11 @@ def control_loop():
                         images=db_payload["images"]
                     )
 
+                    # If result is NG, send alarm signal to PLC via Modbus Register 2
+                    if db_payload["final_result"] == "NG":
+                        logger.warning(f"Unit {db_payload['frame_id']} is NG. Triggering PLC Alarm on Register 2.")
+                        modbus.send_ng_alarm()
+
             # 3. Handle Unit Enter/Exit (Exit MUST happen after save)
             if triggers["unit_enter"]:
                 logger.info("Unit ENTER signal received.")
@@ -246,6 +251,14 @@ async def toggle_engine():
     status_text = "RUNNING" if not current else "STOPPED"
     logger.info(f"Engine state toggled to: {status_text}")
     return {"status": "success", "engine_active": not current}
+
+@app.post("/api/export/csv")
+async def export_csv():
+    """Export the entire inspection database to a timestamped CSV file."""
+    filepath, error = export_to_csv()
+    if error:
+        return {"status": "error", "message": error}
+    return {"status": "success", "file": filepath}
 
 @app.post("/api/system/quit")
 async def quit_system():

@@ -62,6 +62,7 @@ class ModbusHandler:
         self._triggers = {k: False for k in self.addresses}
         
         self.active_clients = 0
+        self.datablock = None  # Will be set once the server starts, used for writing back to PLC
         
         # We only start the real Modbus Server in TEST or REAL mode
         # In MOCK mode, we skip starting the server to avoid occupying the port
@@ -102,9 +103,9 @@ class ModbusHandler:
         def run_server():
             # Initialize Data Store
             # Address 0 to 9, initialized with 0
-            datablock = TriggerDataBlock(0, [0] * 10, self._on_plc_write)
+            self.datablock = TriggerDataBlock(0, [0] * 10, self._on_plc_write)
             store = ModbusDeviceContext(
-                hr=datablock # Holding Registers
+                hr=self.datablock # Holding Registers
             )
             context = ModbusServerContext(devices=store, single=True)
             
@@ -140,6 +141,25 @@ class ModbusHandler:
                 self._triggers[k] = False # Auto-reset after read
                 
         return result
+
+    def send_ng_alarm(self):
+        """
+        Called by main.py when a unit inspection result is NG.
+        Writes 1 to Modbus Holding Register 2 (PLC Alarm Register),
+        then auto-resets it back to 0 after 5 seconds.
+        """
+        if self.datablock is None:
+            logger.warning("NG Alarm: Modbus server not started, cannot write to register 2.")
+            return
+
+        logger.warning("NG ALARM: Writing 1 to Modbus Register 2 (PLC Alarm Signal).")
+        self.datablock.setValues(2, [1])  # Write 1 → register 2
+
+        def reset_alarm():
+            self.datablock.setValues(2, [0])  # Reset → 0 after 5 seconds
+            logger.info("NG Alarm: Register 2 reset to 0.")
+
+        threading.Timer(5.0, reset_alarm).start()
 
 def get_modbus_handler(mode="MOCK", host="0.0.0.0", port=5020, state_manager=None):
     # We bind to 0.0.0.0 to allow external network connections (e.g. from a real PLC)
