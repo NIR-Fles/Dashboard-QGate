@@ -4,12 +4,17 @@ __pycache__/
 *$py.class
 
 # Application Specific
-backend/test_images/
-history_images/
-*.pt
-*.db
-.paddlex/
-csv_export/
+backend/test_images/*
+!backend/test_images/.gitkeep
+
+backend/history_images/*
+!backend/history_images/.gitkeep
+
+# AI and Database Assets (Included)
+# These are no longer ignored to ensure the project is ready-to-run on clone.
+
+csv_export/*
+!csv_export/.gitkeep
 
 # Environment
 .venv/
