@@ -134,48 +134,66 @@ def control_loop():
 
                 # Perform OCR to read Frame ID if Step = 1
                 if step == 1:
-                    # Instantly set a fallback so the dashboard updates with images immediately
-                    state_manager.generate_frame_id()
+                    # FAST PATH: Instantly update live dashboard (no frame_id dependency)
+                    for cam_key, annotated_img in temp_annotated_frames.items():
+                        state_manager.update_live_view(cam_key, step, annotated_img)
                     
-                    def run_ocr_background(frame_info, image):
-                        logger.info("Targeting OCR Crop in parallel thread...")
-                        try:
-                            h, w = image.shape[:2]
-                            box = frame_info["box"]
-                            x1, y1, x2, y2 = map(int, box)
-                            x1, y1 = max(0, x1), max(0, y1)
-                            x2, y2 = min(w, x2), min(h, y2)
-                            
-                            if x2 > x1 and y2 > y1:
-                                margin = 15
-                                x1_m = max(0, x1 - margin)
-                                y1_m = max(0, y1 - margin)
-                                x2_m = min(w, x2 + margin)
-                                y2_m = min(h, y2 + margin)
-                                
-                                crop = image[y1_m:y2_m, x1_m:x2_m]
-                                extracted_id = ocr.process(crop)
-                                if extracted_id:
-                                    logger.info(f"OCR Success (Parallel). Frame ID Set: {extracted_id}")
-                                    state_manager.set_frame_id(extracted_id)
-                                else:
-                                    logger.warning("OCR Failed (Parallel). Keeping Fallback UUID.")
-                        except Exception as e:
-                            logger.error(f"Error during parallel OCR cropping: {e}")
-                            
+                    # Generate fallback frame ID (UUID) in case OCR fails
+                    # state_manager.generate_frame_id() dikomen sementara dulu
+                    
                     # Look for FRAME_ID or similar label in the detections
                     frame_id_info = next((d for d in upper_detection_details if "FRAME_ID" in d["label"]), None)
                     
-                    if frame_id_info and frames.get("upper") is not None:
-                        # Copy the frame slightly to ensure thread safety while slicing
-                        upper_img_copy = frames["upper"].copy()
-                        ocr_thread = threading.Thread(target=run_ocr_background, args=(frame_id_info, upper_img_copy), daemon=True)
-                        ocr_thread.start()
-
-                # Now that Frame ID is set (for Step 1) or already exists (for Step 2),
-                # save and update the images.
-                for cam_key, annotated_img in temp_annotated_frames.items():
-                    state_manager.update_image(cam_key, step, annotated_img)
+                    # Copy frames for thread safety (background thread will use these)
+                    upper_img_copy = frames["upper"].copy() if frames.get("upper") is not None else None
+                    annotated_frames_copy = {k: v.copy() if v is not None else None for k, v in temp_annotated_frames.items()}
+                    
+                    def run_ocr_then_save_history(fid_info, upper_image, annotated_frames):
+                        """Background: Run OCR first to get correct frame ID, then save history images."""
+                        # Step A: Run OCR to resolve actual frame ID
+                        if fid_info and upper_image is not None:
+                            logger.info("Targeting OCR Crop in parallel thread...")
+                            try:
+                                h, w = upper_image.shape[:2]
+                                box = fid_info["box"]
+                                x1, y1, x2, y2 = map(int, box)
+                                x1, y1 = max(0, x1), max(0, y1)
+                                x2, y2 = min(w, x2), min(h, y2)
+                                
+                                if x2 > x1 and y2 > y1:
+                                    margin = 15
+                                    x1_m = max(0, x1 - margin)
+                                    y1_m = max(0, y1 - margin)
+                                    x2_m = min(w, x2 + margin)
+                                    y2_m = min(h, y2 + margin)
+                                    
+                                    crop = upper_image[y1_m:y2_m, x1_m:x2_m]
+                                    extracted_id = ocr.process(crop)
+                                    if extracted_id:
+                                        logger.info(f"OCR Success (Parallel). Frame ID Set: {extracted_id}")
+                                        state_manager.set_frame_id(extracted_id)
+                                    else:
+                                        logger.warning("OCR Failed (Parallel). Keeping Fallback UUID.")
+                            except Exception as e:
+                                logger.error(f"Error during parallel OCR cropping: {e}")
+                        
+                        # Step B: Save history images with correct frame_id (OCR is done by now)
+                        for cam_key, img in annotated_frames.items():
+                            if img is not None:
+                                state_manager.save_history_image(cam_key, 1, img)
+                        logger.info("Background: Step 1 history images saved with correct frame ID.")
+                    
+                    bg_thread = threading.Thread(
+                        target=run_ocr_then_save_history,
+                        args=(frame_id_info, upper_img_copy, annotated_frames_copy),
+                        daemon=True
+                    )
+                    bg_thread.start()
+                
+                else:
+                    # Step 2: Frame ID is already finalized, save everything directly
+                    for cam_key, annotated_img in temp_annotated_frames.items():
+                        state_manager.update_image(cam_key, step, annotated_img)
                 
                 # Deduplicate the list (in case a bolt is seen by multiple cameras)
                 detected_bolts = list(set(detected_bolts))
@@ -207,7 +225,8 @@ def control_loop():
 
             # 3. Handle Unit Enter/Exit (Exit MUST happen after save)
             if triggers["unit_enter"]:
-                logger.info("Unit ENTER signal received.")
+                logger.info("Unit ENTER signal received. Resetting state for new unit.")
+                state_manager.reset()  # Clean up any leftover data from previous unit (handles skipped State 4)
                 state_manager.system_status["unit_present"] = True
                 
             if triggers["unit_exit"]:

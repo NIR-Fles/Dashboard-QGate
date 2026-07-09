@@ -7,7 +7,7 @@ An industrial-grade automated inspection system designed for quality gate (Q-Gat
 - **Real-time Monitoring**: Live camera feeds with AI detection overlays (Bolts & Labels).
 - **Dual-AI Architecture**:
   - **YOLO11 (OpenVINO CPU Optimized)**: Ultra-high-speed bolt detection (~16-24ms per frame, 10x speedup).
-  - **PaddleOCR (Thread-Safe Async Background Thread)**: Non-blocking automatic extraction of 17-character Frame IDs, decoupled from the core PLC trigger loop.
+  - **PaddleOCR (Thread-Safe Async Background Thread)**: Non-blocking automatic extraction of 17-character Frame IDs during Step 1, decoupled from the core PLC trigger loop.
 - **Modbus TCP Integration**: 
   - Listens for PLC triggers (Unit Enter/Capture/Exit/Reset).
   - Sends active alarm signals back to PLC on "NG" results.
@@ -33,9 +33,9 @@ The system operates as a **Modbus TCP Server** (Default Port: 5020).
 ### Holding Register 1: PLC → Python (Triggers)
 | Value | Action |
 |---|---|
-| `1` | **Unit Enter**: Initializes new inspection cycle. Auto-resets to `0` after 0.1s. |
-| `2` | **Capture Step 1**: Triggers cameras and YOLO for first set of bolts. Auto-resets to `0` after 0.1s. |
-| `3` | **Capture Step 2**: Triggers cameras, YOLO, and starts async OCR for final validation. Auto-resets to `0` after 0.1s. |
+| `1` | **Unit Enter**: Initializes new inspection cycle and resets any stale dashboard data. Auto-resets to `0` after 0.1s. |
+| `2` | **Capture Step 1**: Triggers cameras, YOLO for first set of bolts, and starts background async OCR. Auto-resets to `0` after 0.1s. |
+| `3` | **Capture Step 2**: Triggers cameras, YOLO, and finalizes inspection. Auto-resets to `0` after 0.1s. |
 | `4` | **Unit Exit Armed**: Prepares system for reset. The value **stays `4`** on the register and does not auto-reset. |
 | `0` | **Unit Exit Trigger**: Executes the **falling-edge / differential down** reset action when transitioned from `4` to `0`. |
 
@@ -45,6 +45,11 @@ The system operates as a **Modbus TCP Server** (Default Port: 5020).
 | `1` | **NG Alarm**: Pulse sent for 5 seconds if inspection fails. |
 | `0` | **Normal**: Default state. |
 
+### Holding Register 4: Python → PLC (Heartbeat)
+| Value | Meaning |
+|---|---|
+| `0-100` | **PLC Heartbeat**: An incrementing counter updated every 1.0 second. The PLC can read this register to verify that the Python backend is alive and responsive. |
+
 ### Coils 1-3: Factory I/O Proximity Sensors (Inputs)
 The system listens to Modbus TCP Coils (Addresses 1, 2, and 3) to simulate a physical conveyor line in **Factory I/O** (Mode: Modbus TCP Client):
 - **Coil 1 (Address 1)**: Photosensor Entry
@@ -53,8 +58,8 @@ The system listens to Modbus TCP Coils (Addresses 1, 2, and 3) to simulate a phy
 
 **Sensor Combination Logic (Ladder-Logic Style):**
 - `[ON, OFF, OFF]` $\rightarrow$ **Trigger 1**: Unit Enter (Unit enters the conveyor)
-- `[ON, ON, OFF]` $\rightarrow$ **Trigger 2**: Capture Step 1 (Trigger Camera 1 + YOLO)
-- `[OFF, ON, ON]` $\rightarrow$ **Trigger 3**: Capture Step 2 (Trigger Camera 2 + YOLO + OCR, and save to DB)
+- `[ON, ON, OFF]` $\rightarrow$ **Trigger 2**: Capture Step 1 (Trigger Camera 1 + YOLO + Start Async OCR)
+- `[OFF, ON, ON]` $\rightarrow$ **Trigger 3**: Capture Step 2 (Trigger Camera 2 + YOLO, and save to DB)
 - `[OFF, OFF, ON]` $\rightarrow$ **Trigger 4**: Unit Exit (Unit exits the conveyor)
 - `[OFF, OFF, OFF]` $\rightarrow$ **Reset (0)**: Conveyor is empty / Ready for the next unit
 
@@ -67,7 +72,7 @@ The system listens to Modbus TCP Coils (Addresses 1, 2, and 3) to simulate a phy
 To ensure reliable operation in noise-heavy industrial environments, the system features a robust global sequence guard:
 - **Anti-Bouncing (Flicker Prevention)**: Prevents redundant double-triggers if physical sensors flicker or bounce rapidly.
 - **Strict Sequence (1 -> 2 -> 3 -> 4)**: The system strictly enforces the sequential step progression. Out-of-order jumps (e.g., skipping from Step 1 directly to Step 3) are automatically ignored to prevent data corruption.
-- **Safe Reset**: If a unit is manually lifted off the conveyor halfway, the sensor state `[OFF, OFF, OFF]` triggers a safe reset (`0`), making the system ready to accept a new unit from the beginning.
+- **Safe Reset**: If a unit is manually lifted off the conveyor halfway, the sensor state `[OFF, OFF, OFF]` triggers a safe reset (`0`), making the system ready to accept a new unit from the beginning. Additionally, a redundant reset is executed when a new unit enters (State 1) to ensure the system is completely cleared.
 - **Universal Guard**: This sequence protection is enforced **globally** inside the core server. It validates inputs coming from both **Factory I/O Coils** and direct **Holding Register 1** writes (via hardware PLCs or diagnostic tools like **ModbusPoll**).
 
 ### 🔌 Manual Testing via API (Bypass Mode)
@@ -81,11 +86,11 @@ Run these triggers from your terminal using `curl`:
   ```bash
   curl -X POST http://localhost:8000/debug/trigger/unit_enter
   ```
-* **Trigger Capture Step 1 (Upper & Lower Cameras + YOLO):**
+* **Trigger Capture Step 1 (Upper & Lower Cameras + YOLO + Start Async OCR):**
   ```bash
   curl -X POST http://localhost:8000/debug/trigger/capture_step_1
   ```
-* **Trigger Capture Step 2 (Cameras + YOLO + PaddleOCR + Save to DB):**
+* **Trigger Capture Step 2 (Cameras + YOLO + Save to DB):**
   ```bash
   curl -X POST http://localhost:8000/debug/trigger/capture_step_2
   ```

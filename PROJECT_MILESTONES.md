@@ -6,6 +6,13 @@
 > 🎯 **Project Evolution Overview**
 > From the initial commit to a finalized, air-gapped industrial bolt inspection system. The project evolved from basic UI mockups to a complex dual-AI (YOLO11 + PaddleOCR) architecture integrated directly with factory hardware via Modbus TCP. This document tracks the precise architectural evolution and file modifications across the system's history.
 
+## 📅 2026-07-09
+### ⚡ Asynchronous Image Path Splitting, Redundant State Reset, and Coil-to-HR1 Unification
+* **Unified Modbus Trigger Path (`backend/modbus_handler.py`)**: Unified the trigger entry points. Coil combinations from simulation (Factory I/O / Blender) now write directly to Holding Register 1 (`self.hr_datablock.setValues(1, [trigger_val])`), routing all triggers through a single, standardized pipeline just like a real hardware PLC.
+* **Redundant Reset at State 1 (`backend/main.py`)**: Added `state_manager.reset()` to the `unit_enter` (State 1) trigger. This resolves the anomaly where a motorcycle frame is manually lifted off the line without triggering the exit sensor (State 4), preventing the dashboard from holding stale images or statuses from the previous cycle.
+* **Asynchronous Image Path Splitting (`backend/state_manager.py`, `backend/main.py`)**: Split image updating into two methods: `update_live_view` (instant dashboard update with downscaled image) and `save_history_image` (deferred background disk save with full resolution).
+* **Zero-Latency Dashboard Update (`backend/main.py`)**: Step 1 now immediately updates the live view on the dashboard in the main thread (latencies near 0ms), while the background OCR thread handles both running OCR and saving the full-resolution history images to disk sequentially using the final OCR-resolved Frame ID.
+
 ## 📅 2026-05-18
 ### ⚡ OpenVINO YOLOv11 Acceleration, Thread-Safe Async OCR, and PLC Differential Down Logic
 * **OpenVINO Model Optimization (`backend/yolo_processor.py`)**: Migrated the YOLO11 model from standard PyTorch (`best.pt`) to OpenVINO format (`best-p2_openvino_model`). Configured `LATENCY` mode for batch=1 inference on CPU, boosting inference speeds from ~200ms to a blazing fast **16-24ms per frame** (10x performance improvement).

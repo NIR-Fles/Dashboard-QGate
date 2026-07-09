@@ -138,7 +138,8 @@ class StateManager:
                 
     def update_image(self, camera_key, step, frame):
         """
-        Converts CV2 frame to Base64 and stores it.
+        Full image update: saves history to disk AND updates live dashboard.
+        Used by Step 2 where frame_id is already finalized.
         key: 'right', 'left', 'upper'
         step: 1 or 2
         """
@@ -171,6 +172,49 @@ class StateManager:
                     # Serve statically to avoid massive Base64 JSON overhead
                     self.images[storage_key] = f"/live_images/{live_filename}?t={int(time.time()*1000)}"
                     # Store relative filepath to history_images folder
+                    self.image_paths[storage_key] = f"{camera_key}/{filename}"
+
+    def update_live_view(self, camera_key, step, frame):
+        """
+        Fast path: Updates ONLY the live dashboard image (downscaled).
+        Does NOT save history to disk. Used by Step 1 to instantly show
+        inspection results on dashboard without waiting for OCR.
+        """
+        if frame is not None:
+            h, w = frame.shape[:2]
+            max_w = 640
+            if w > max_w:
+                scale = max_w / w
+                display_frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
+            else:
+                display_frame = frame
+
+            storage_key = f"{camera_key}_step{step}"
+            live_filename = f"latest_{storage_key}.jpg"
+            live_filepath = os.path.join(self.live_dir, live_filename)
+            cv2.imwrite(live_filepath, display_frame)
+
+            with self.lock:
+                if storage_key in self.images:
+                    self.images[storage_key] = f"/live_images/{live_filename}?t={int(time.time()*1000)}"
+
+    def save_history_image(self, camera_key, step, frame):
+        """
+        Deferred path: Saves full-resolution image to history folder
+        using the current (OCR-corrected) frame_id.
+        Called from background thread after OCR has completed.
+        """
+        if frame is not None:
+            side_dir = os.path.join(self.history_dir, camera_key)
+            os.makedirs(side_dir, exist_ok=True)
+            capture_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"{self.current_frame_id}-{camera_key}_step_{step}-{capture_time}.jpg"
+            filepath = os.path.join(side_dir, filename)
+            cv2.imwrite(filepath, frame)
+
+            storage_key = f"{camera_key}_step{step}"
+            with self.lock:
+                if storage_key in self.images:
                     self.image_paths[storage_key] = f"{camera_key}/{filename}"
 
     def get_full_state(self):

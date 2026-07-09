@@ -21,10 +21,13 @@ class SensorCoilDataBlock(ModbusSequentialDataBlock):
     """
     Custom Modbus DataBlock that intercepts WRITE commands to Coils from Factory I/O.
     Simulates proximity sensors combinations into system triggers.
+    Instead of bypassing directly to _on_plc_write, this now writes the
+    computed trigger value to Holding Register 1, unifying all trigger
+    sources through a single HR1 pipeline (same as a real PLC would do).
     """
-    def __init__(self, address, values, trigger_callback):
+    def __init__(self, address, values, hr_datablock):
         super().__init__(address, values)
-        self.trigger_callback = trigger_callback
+        self.hr_datablock = hr_datablock  # Reference to TriggerDataBlock (Holding Registers)
         
         # Keep track of previous state to detect edges
         # Assuming Sensor 1 -> Coil 1, Sensor 2 -> Coil 2, Sensor 3 -> Coil 3
@@ -71,9 +74,9 @@ class SensorCoilDataBlock(ModbusSequentialDataBlock):
                 elif curr_state == (False, False, False):
                     trigger_val = 0 # Reset sequence when all sensors are OFF
                 
-                # Teruskan ke global handler, validasi sequence akan dilakukan di _on_plc_write
+                # Tulis langsung ke Holding Register 1 agar satu jalur dengan PLC asli
                 if trigger_val is not None:
-                    self.trigger_callback(1, trigger_val)
+                    self.hr_datablock.setValues(1, [trigger_val])
         except IndexError:
             pass
 
@@ -200,7 +203,7 @@ class ModbusHandler:
             # Initialize Data Store
             # Address 0 to 9, initialized with 0 for HR, False for Coils
             self.datablock = TriggerDataBlock(0, [0] * 10, self._on_plc_write)
-            self.coil_datablock = SensorCoilDataBlock(0, [False] * 10, self._on_plc_write)
+            self.coil_datablock = SensorCoilDataBlock(0, [False] * 10, self.datablock)
             
             store = ModbusDeviceContext(
                 co=self.coil_datablock, # Coils for Factory I/O Sensors
