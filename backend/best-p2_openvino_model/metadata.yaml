@@ -1,0 +1,44 @@
+description: Ultralytics YOLO11n-p2 model trained on C:\Users\Dzaki\Documents\Selfrin
+  Dataset\05042026_1000_datasets\data.yaml
+author: Ultralytics
+date: '2026-05-18T20:43:08.465914'
+version: 8.4.15
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: NUT FRONT AXLE 12MM
+  1: BOLT TORX 8X28 CALIPER (UNDER)
+  2: BOLT TORX 8X28 CALIPER (UPPER)
+  3: BF 8X12 HORN COMP
+  4: BOLT SIDE STAND PIVOT
+  5: BF 6X12 CLAMP THROTTLE CABLE
+  6: BF 10X55 LINK ASSY ENG HANGER L
+  7: BF 10X38 REAR CUSHION L
+  8: BOLT WASHER 6X12 REAR FENDER
+  9: BF 10x255 LINK ASSY ENG HANGER L
+  10: NUT FLANGE 6MM GROUNDING
+  11: BOLT FIXING RADIATOR RESERVE
+  12: BOLT AXLE FRONT WHEEL
+  13: BF 10X55 LINK ASSY ENG HANGER R
+  14: BF 10X38 REAR CUSHION R
+  15: BF 10X65 MUFFLER CENTER (UPPER)
+  16: BF 10X65 MUFFLER REAR (UNDER)
+  17: BF 10X65 MUFFLER FRONT (UNDER)
+  18: BS 6X18 FENDER C REAR (FRONT)
+  19: BS 6X18 FENDER C REAR (REAR)
+  20: FRAME ID
+args:
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: false
+  dynamic: false
+  nms: false
+channels: 3
+end2end: false

@@ -58,7 +58,7 @@ def save_inspection(frame_id, model, final_result, bolt_data, images):
     except Exception as e:
         logger.error(f"Error saving inspection to database: {e}")
 
-def get_history(limit=50):
+def get_history(limit=1000):
     """
     Retrieves the most recent inspection records.
     """
@@ -88,6 +88,32 @@ def get_history(limit=50):
     except Exception as e:
         logger.error(f"Error retrieving history: {e}")
         return []
+
+def get_inspection_by_id(record_id):
+    """
+    Retrieves a single inspection record by its database ID.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM inspections WHERE id = ?', (record_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            record = dict(row)
+            record['bolt_data'] = json.loads(record['bolt_data'])
+            record['images'] = json.loads(record['images'])
+            conn.close()
+            return record
+            
+        conn.close()
+        return None
+    except Exception as e:
+        logger.error(f"Error retrieving inspection by id {record_id}: {e}")
+        return None
+
 
 def export_to_csv():
     """

@@ -64,13 +64,12 @@ class RealOcrProcessor(OcrProcessorBase):
             result = self.ocr.ocr(frame)
             logger.info(f"REAL OCR: Raw result -> {result}")
             
-            extracted_text = ""
+            candidates = []
             if result and isinstance(result, list) and len(result) > 0:
                 item = result[0]
                 # Format A: High-level dict (seen in logs)
                 if isinstance(item, dict) and 'rec_texts' in item:
-                    texts = item.get('rec_texts', [])
-                    extracted_text = "".join(str(t) for t in texts)
+                    candidates = [str(t) for t in item.get('rec_texts', [])]
                 # Format B: Classic list hierarchy
                 elif isinstance(item, list):
                     for line in item:
@@ -78,18 +77,45 @@ class RealOcrProcessor(OcrProcessorBase):
                             if len(line) >= 2 and len(line[1]) >= 2:
                                 text = line[1][0]
                                 confidence = line[1][1]
-                                if confidence > 0.5:
-                                    extracted_text += str(text)
+                                if confidence > 0.4:  # Match typical threshold
+                                    candidates.append(str(text))
                         except (IndexError, TypeError):
                             continue
-            
-            # Basic cleanup (remove spaces/special chars)
+
+            # Clean and sanitize each candidate
             import re
-            # Only keep alphanumeric
+            cleaned_candidates = []
+            for cand in candidates:
+                cleaned = re.sub(r'[^A-Z0-9]', '', cand.upper())
+                if cleaned:
+                    cleaned_candidates.append(cleaned)
+            
+            # Step A: Look for candidate matching Indonesian Honda VIN (Starts with MH1 and is exactly 17 chars)
+            for cand in cleaned_candidates:
+                if cand.startswith("MH1") and len(cand) == 17:
+                    logger.info(f"REAL OCR: Found exact MH1 17-char VIN -> {cand}")
+                    return cand
+                    
+            # Step B: Look for any candidate that is exactly 17 chars
+            for cand in cleaned_candidates:
+                if len(cand) == 17:
+                    logger.info(f"REAL OCR: Found general 17-char VIN -> {cand}")
+                    return cand
+                    
+            # Step C: Look for a substring inside any candidate that matches the 17-char VIN pattern
+            for cand in cleaned_candidates:
+                match = re.search(r'MH1[A-Z0-9]{14}', cand)
+                if match:
+                    found = match.group(0)
+                    logger.info(f"REAL OCR: Found MH1 pattern in candidate -> {found}")
+                    return found
+
+            # Step D: Fallback to joining all cleaned candidates if no exact pattern is found
+            extracted_text = "".join(cleaned_candidates)
             safe_text = re.sub(r'[^A-Z0-9]', '', str(extracted_text).upper())
             
             if len(safe_text) >= 3: 
-                logger.info(f"REAL OCR: Detected Text -> {safe_text}")
+                logger.info(f"REAL OCR: Fallback Detected Text -> {safe_text}")
                 return safe_text
             return None
                 

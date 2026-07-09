@@ -113,13 +113,21 @@ function connectWebSocket() {
                 if (latency > ws_maxLatency) ws_maxLatency = latency;
 
                 // Calculate Jitter (Absolute difference between consecutive latencies)
+                let currentJitter = 0;
                 if (ws_lastLatency !== -1) {
-                    const currentJitter = Math.abs(latency - ws_lastLatency);
+                    currentJitter = Math.abs(latency - ws_lastLatency);
                     ws_totalJitter += currentJitter;
                 }
+
+                // Log every packet for raw data analysis (requested for research/proof)
+                const d = new Date(data.timestamp * 1000);
+                const timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}.${d.getMilliseconds().toString().padStart(3, '0')}`;
+                console.log(`[RAW_WS] Time: ${timeStr}, Latency: ${latency.toFixed(2)}ms, Jitter: ${currentJitter.toFixed(2)}ms`);
+
                 ws_lastLatency = latency;
 
                 // Log a summary every 50 packets (~10 Seconds)
+                /*
                 if (ws_messageCount % 50 === 0) {
                     console.log(`%c--- WS Performance Report (${ws_messageCount} Packets) ---`, 'color: #01B763; font-weight: bold;');
                     console.log(`Avg Latency: ${(ws_totalLatency / ws_messageCount).toFixed(2)} ms`);
@@ -128,6 +136,7 @@ function connectWebSocket() {
                     
                     // Reset interval stats if you want rolling averages, or leave it for cumulative
                 }
+                */
             }
 
             updateMonitoringDashboard(data);

@@ -10,6 +10,7 @@ import logging
 import threading
 import time
 import os
+import concurrent.futures
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +21,7 @@ from camera_handler import get_camera_handler
 from yolo_processor import get_yolo_processor
 from ocr_processor import get_ocr_processor
 from state_manager import StateManager
-from database import init_db, save_inspection, get_history, export_to_csv
+from database import init_db, save_inspection, get_history, get_inspection_by_id, export_to_csv
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -28,8 +29,9 @@ logger = logging.getLogger("main")
 
 # Resolve absolute paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
-test_images_path = os.path.join(current_dir, "test_images")
-model_path = os.path.join(current_dir, "best.pt")
+# test_images_path = os.path.join(current_dir, "test_images") # ORIGINAL RANDOM TEST
+test_images_path = os.path.join(current_dir, "test_images", "for_benchmark") # BENCHMARK SEQUENTIAL TEST
+model_path = os.path.join(current_dir, "best-p2_openvino_model")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -132,48 +134,43 @@ def control_loop():
 
                 # Perform OCR to read Frame ID if Step = 1
                 if step == 1:
-                    logger.info("Attempting to read Frame ID via Crop + OCR.")
-                    extracted_id = None
+                    # Instantly set a fallback so the dashboard updates with images immediately
+                    state_manager.generate_frame_id()
                     
-                    # Look for FRAME_ID or similar label in the detections
-                    frame_id_info = next((d for d in upper_detection_details if "FRAME_ID" in d["label"]), None)
-                    
-                    if frame_id_info and frames.get("upper") is not None:
+                    def run_ocr_background(frame_info, image):
+                        logger.info("Targeting OCR Crop in parallel thread...")
                         try:
-                            upper_img = frames["upper"]
-                            h, w = upper_img.shape[:2]
-                            logger.info(f"Upper Frame Resolution: {w}x{h}")
-                            
-                            # d["box"] is [x1, y1, x2, y2]
-                            box = frame_id_info["box"]
+                            h, w = image.shape[:2]
+                            box = frame_info["box"]
                             x1, y1, x2, y2 = map(int, box)
-                            
-                            # Bounds checking
                             x1, y1 = max(0, x1), max(0, y1)
                             x2, y2 = min(w, x2), min(h, y2)
                             
                             if x2 > x1 and y2 > y1:
-                                # Add a small margin
                                 margin = 15
                                 x1_m = max(0, x1 - margin)
                                 y1_m = max(0, y1 - margin)
                                 x2_m = min(w, x2 + margin)
                                 y2_m = min(h, y2 + margin)
                                 
-                                crop = upper_img[y1_m:y2_m, x1_m:x2_m]
-                                logger.info(f"Targeting OCR Crop: Label={frame_id_info['label']} Crop Shape={crop.shape}")
+                                crop = image[y1_m:y2_m, x1_m:x2_m]
                                 extracted_id = ocr.process(crop)
-                            else:
-                                logger.warning(f"Invalid crop coordinates: {x1, y1, x2, y2} for frame {w}x{h}")
+                                if extracted_id:
+                                    logger.info(f"OCR Success (Parallel). Frame ID Set: {extracted_id}")
+                                    state_manager.set_frame_id(extracted_id)
+                                else:
+                                    logger.warning("OCR Failed (Parallel). Keeping Fallback UUID.")
                         except Exception as e:
-                            logger.error(f"Error during OCR cropping: {e}")
+                            logger.error(f"Error during parallel OCR cropping: {e}")
+                            
+                    # Look for FRAME_ID or similar label in the detections
+                    frame_id_info = next((d for d in upper_detection_details if "FRAME_ID" in d["label"]), None)
                     
-                    if extracted_id:
-                        logger.info(f"OCR Success. Frame ID Set: {extracted_id}")
-                        state_manager.set_frame_id(extracted_id)
-                    else:
-                        logger.warning("OCR Failed (or no Frame ID label detected). Generating Fallback UUID.")
-                        state_manager.generate_frame_id()
+                    if frame_id_info and frames.get("upper") is not None:
+                        # Copy the frame slightly to ensure thread safety while slicing
+                        upper_img_copy = frames["upper"].copy()
+                        ocr_thread = threading.Thread(target=run_ocr_background, args=(frame_id_info, upper_img_copy), daemon=True)
+                        ocr_thread.start()
 
                 # Now that Frame ID is set (for Step 1) or already exists (for Step 2),
                 # save and update the images.
@@ -232,11 +229,11 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # We fetch state and send only to THIS connection.
-            # manager.broadcast_state() was redundant and N^2 complex.
+            # The JSON payload is now extremely small (no Base64)
+            # Sending at 5fps is incredibly lightweight and ensures UI sync
             state = state_manager.get_full_state()
             await websocket.send_json(state)
-            await asyncio.sleep(0.2) # Faster updates (5fps)
+            await asyncio.sleep(0.2) 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
@@ -283,18 +280,17 @@ async def debug_trigger(signal: str):
     return {"status": "error", "message": "Invalid signal"}
 
 @app.get("/api/history")
-async def fetch_history(limit: int = 50):
+async def fetch_history(limit: int = 1000):
     """Fetch recent inspection history from database."""
     history = get_history(limit)
     return {"status": "success", "data": history}
 
 @app.get("/api/history/{record_id}")
 async def fetch_history_detail(record_id: int):
-    """Fetch specific history detail (optional if all data is in list, but good for future expansion)"""
-    history = get_history(limit=100) # Quick hack to find it locally. In production, query DB directly by ID.
-    for record in history:
-        if record["id"] == record_id:
-            return {"status": "success", "data": record}
+    """Fetch specific history detail dynamically by ID."""
+    record = get_inspection_by_id(record_id)
+    if record:
+        return {"status": "success", "data": record}
     return {"status": "error", "message": "Record not found"}
 
 # Resolve path to frontend relative to this file
@@ -303,6 +299,10 @@ frontend_dir = os.path.join(current_dir, "../frontend")
 # Mount historical images. Ensure this is BEFORE the catch-all frontend mount.
 history_images_dir = os.path.join(current_dir, "history_images")
 app.mount("/history_images", StaticFiles(directory=history_images_dir), name="history_images")
+
+# Mount live images for extremely fast static serving
+live_images_dir = os.path.join(current_dir, "live_images")
+app.mount("/live_images", StaticFiles(directory=live_images_dir), name="live_images")
 
 # Mount at root (must be last to not override API routes)
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

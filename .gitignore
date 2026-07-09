@@ -10,6 +10,10 @@ backend/test_images/*
 backend/history_images/*
 !backend/history_images/.gitkeep
 
+backend/live_images/*
+!backend/live_images/.gitkeep
+
+
 # AI and Database Assets (Included)
 # These are no longer ignored to ensure the project is ready-to-run on clone.
 

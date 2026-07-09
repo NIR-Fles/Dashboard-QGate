@@ -83,6 +83,10 @@ class StateManager:
         # Ensure history directory exists
         self.history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history_images")
         os.makedirs(self.history_dir, exist_ok=True)
+        
+        # Ensure live images directory exists for static fast routing
+        self.live_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_images")
+        os.makedirs(self.live_dir, exist_ok=True)
 
     def set_plc_connected(self, status: bool):
         with self.lock:
@@ -157,13 +161,15 @@ class StateManager:
             else:
                 display_frame = frame
 
-            _, buffer = cv2.imencode('.jpg', display_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-            b64_str = base64.b64encode(buffer).decode('utf-8')
             storage_key = f"{camera_key}_step{step}"
+            live_filename = f"latest_{storage_key}.jpg"
+            live_filepath = os.path.join(self.live_dir, live_filename)
+            cv2.imwrite(live_filepath, display_frame)
 
             with self.lock:
                 if storage_key in self.images:
-                    self.images[storage_key] = f"data:image/jpeg;base64,{b64_str}"
+                    # Serve statically to avoid massive Base64 JSON overhead
+                    self.images[storage_key] = f"/live_images/{live_filename}?t={int(time.time()*1000)}"
                     # Store relative filepath to history_images folder
                     self.image_paths[storage_key] = f"{camera_key}/{filename}"
 

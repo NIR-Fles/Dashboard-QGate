@@ -10,7 +10,7 @@ logger = logging.getLogger("yolo_processor")
 
 # Abstract Base Class
 class YoloProcessorBase:
-    def __init__(self, model_path="best.pt"):
+    def __init__(self, model_path="best-p2.pt"):
         self.model_path = model_path
         
     def process(self, frame):
@@ -18,7 +18,7 @@ class YoloProcessorBase:
 
 # Mock Implementation
 class MockYoloProcessor(YoloProcessorBase):
-    def __init__(self, model_path="best.pt"):
+    def __init__(self, model_path="best-p2.pt"):
         super().__init__(model_path)
         logger.info("MOCK YOLO: Initialized.")
 
@@ -55,7 +55,7 @@ class MockYoloProcessor(YoloProcessorBase):
 
 # Real Implementation
 class RealYoloProcessor(YoloProcessorBase):
-    def __init__(self, model_path="best.pt"):
+    def __init__(self, model_path="best-p2.pt"):
         super().__init__(model_path)
         self.model = None
         if YOLO:
@@ -100,7 +100,7 @@ class RealYoloProcessor(YoloProcessorBase):
         return detected, annotated_frame, detection_details
 
 # Factory Function
-def get_yolo_processor(mode="MOCK", model_path="best.pt"):
+def get_yolo_processor(mode="MOCK", model_path="best-p2.pt"):
     if mode == "REAL" or mode == "TEST": 
         # TEST mode can utilize REAL YOLO if desired, or Mock YOLO. 
         # User asked for "Mock code", "Testing code (images from dir)", "Real code".

@@ -49,11 +49,20 @@ class FileCameraHandler(CameraHandlerBase):
         super().__init__()
         self.base_dir = base_dir
         self.last_upper_frame = None
+        self.current_index = -1
+        self.last_captured_step = None
         
     def initialize(self):
-        logger.info(f"TEST Camera: Reading from step-specific directories in {self.base_dir}")
+        logger.info(f"TEST Camera: Reading sequentially from step-specific directories in {self.base_dir}")
 
     def capture_all(self, step=1):
+        # --- NEW (Sequential Selection) ---
+        if step == 1 and self.last_captured_step != 1:
+            self.current_index += 1
+            logger.info(f"Sequential Camera: Moving to next image index: {self.current_index}")
+        self.last_captured_step = step
+        # ----------------------------------
+
         frames = {}
         for name in self.cam_names:
             # Special case: Upper camera in Step 2 uses the exact same image from Step 1
@@ -69,9 +78,18 @@ class FileCameraHandler(CameraHandlerBase):
             dir_path = os.path.join(self.base_dir, f"step{step}", name)
             
             if os.path.exists(dir_path):
-                files = [f for f in os.listdir(dir_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                # --- ORIGINAL (Random Selection) ---
+                # files = [f for f in os.listdir(dir_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                # if files:
+                #     chosen_file = random.choice(files)
+                # -----------------------------------
+                
+                # --- NEW (Sequential Selection) ---
+                files = sorted([f for f in os.listdir(dir_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
                 if files:
-                    chosen_file = random.choice(files)
+                    chosen_index = self.current_index % len(files)
+                    chosen_file = files[chosen_index]
+                # -----------------------------------
                     img_path = os.path.join(dir_path, chosen_file)
                     img = cv2.imread(img_path)
                     if img is not None:
@@ -81,7 +99,7 @@ class FileCameraHandler(CameraHandlerBase):
                              self.last_upper_frame = img
                     else:
                         logger.warning(f"Failed to read image: {img_path}")
-                        frames[name] = self._generate_error_frame(f"Read Error {name}")
+                        frames[name] = self._generate_error_frame(f"Read Error {name} ({chosen_file})")
                 else:
                     frames[name] = self._generate_error_frame(f"No Files {name}")
             else:

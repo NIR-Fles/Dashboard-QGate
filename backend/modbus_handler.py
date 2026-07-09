@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import threading
+import time
 from pymodbus.server import StartTcpServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusDeviceContext, ModbusServerContext
 
@@ -16,6 +17,66 @@ TRIGGER_VALUES = {
 
 VALID_TRIGGERS = list(TRIGGER_VALUES.values())
 
+class SensorCoilDataBlock(ModbusSequentialDataBlock):
+    """
+    Custom Modbus DataBlock that intercepts WRITE commands to Coils from Factory I/O.
+    Simulates proximity sensors combinations into system triggers.
+    """
+    def __init__(self, address, values, trigger_callback):
+        super().__init__(address, values)
+        self.trigger_callback = trigger_callback
+        
+        # Keep track of previous state to detect edges
+        # Assuming Sensor 1 -> Coil 1, Sensor 2 -> Coil 2, Sensor 3 -> Coil 3
+        # In a 0-based block starting at 0, they are at index 1, 2, 3
+        self.prev_state = (False, False, False)
+        self.last_trigger = 0 # To prevent double readings (bouncing)
+
+    def setValues(self, address, values):
+        super().setValues(address, values)
+        
+        try:
+            curr_s1 = bool(self.values[1])
+            curr_s2 = bool(self.values[2])
+            curr_s3 = bool(self.values[3])
+            curr_state = (curr_s1, curr_s2, curr_s3)
+            
+            # Detect Sensor 3 falling edge (ON -> OFF) for Factory I/O Sequence Reset (Coil 4)
+            prev_s3 = self.prev_state[2]
+            if prev_s3 and not curr_s3:
+                logger.info("Factory I/O Auto-Reset: Sensor 3 OFF -> Pulsing Coil 4 ON")
+                self.values[4] = True # Turn Coil 4 ON
+                
+                # Thread to turn Coil 4 OFF after a short pulse (e.g. 1 second)
+                def reset_coil_4():
+                    self.values[4] = False
+                    logger.info("Factory I/O Auto-Reset: Coil 4 OFF")
+                
+                import threading
+                threading.Timer(1.0, reset_coil_4).start()
+            
+            if curr_state != self.prev_state:
+                self.prev_state = curr_state
+                
+                # Apply combination logic
+                trigger_val = None
+                if curr_state == (True, False, False):
+                    trigger_val = 1 # unit_enter
+                elif curr_state == (True, True, False):
+                    trigger_val = 2 # capture_step_1
+                elif curr_state == (False, True, True):
+                    trigger_val = 3 # capture_step_2
+                elif curr_state == (False, False, True):
+                    trigger_val = 4 # unit_exit
+                elif curr_state == (False, False, False):
+                    trigger_val = 0 # Reset sequence when all sensors are OFF
+                
+                # Teruskan ke global handler, validasi sequence akan dilakukan di _on_plc_write
+                if trigger_val is not None:
+                    self.trigger_callback(1, trigger_val)
+        except IndexError:
+            pass
+
 class TriggerDataBlock(ModbusSequentialDataBlock):
     """
     Custom Modbus DataBlock that intercepts WRITE commands from the PLC.
@@ -24,6 +85,7 @@ class TriggerDataBlock(ModbusSequentialDataBlock):
     def __init__(self, address, values, callback):
         super().__init__(address, values)
         self.callback = callback
+        self.last_val = 0  # Track last written value to prevent duplicate/spam triggers
 
     def setValues(self, address, values):
         # Call the original method to save the data
@@ -32,16 +94,24 @@ class TriggerDataBlock(ModbusSequentialDataBlock):
         # We only care about writing to holding register address 1
         if address == 1 and values:
             val = values[0]
-            if val in TRIGGER_VALUES:
+            if val in TRIGGER_VALUES or val == 0:
+                # Prevent spam by ignoring consecutive writes of the same value
+                if val == self.last_val:
+                    return
+                
+                self.last_val = val
+                
                 # Trigger the callback
                 self.callback(address, val)
                 
                 # Auto-reset the register value to 0 to acknowledge the command
-                # We delay this slightly so PyModbus has time to construct the correct 
-                # WriteSingleRegister echo response back to the client (sending back the original value).
-                def reset_val():
-                    super(TriggerDataBlock, self).setValues(1, [0])
-                threading.Timer(0.1, reset_val).start()
+                # We only auto-reset triggers 1, 2, and 3.
+                # For 4 (unit_exit), we let it stay 4 until the PLC/ModbusPoll writes 0 to trigger the falling edge.
+                if val in [1, 2, 3]:
+                    def reset_val():
+                        super(TriggerDataBlock, self).setValues(1, [0])
+                        self.last_val = 0
+                    threading.Timer(0.1, reset_val).start()
 
 class ModbusHandler:
     """
@@ -63,6 +133,7 @@ class ModbusHandler:
         
         self.active_clients = 0
         self.datablock = None  # Will be set once the server starts, used for writing back to PLC
+        self.last_valid_trigger = 0 # Global tracker untuk Anti-Bouncing & Sequence
         
         # We only start the real Modbus Server in TEST or REAL mode
         # In MOCK mode, we skip starting the server to avoid occupying the port
@@ -87,14 +158,39 @@ class ModbusHandler:
             self.state_manager.set_plc_connected(is_connected)
 
     def _on_plc_write(self, address, value):
-        """Callback invoked when the PLC (Master) writes to our Holding Registers."""
+        """Callback invoked when the PLC (Master) writes to our Holding Registers or Coils."""
         logger.info(f"Modbus SERVER received write at address {address} with value {value}")
         
-        if address == 1 and value in TRIGGER_VALUES:
-            trigger_name = TRIGGER_VALUES[value]
+        if address == 1:
             with self.lock:
-                self._triggers[trigger_name] = True
-            logger.info(f"PLC Modbus Signal Triggered [Value {value}]: {trigger_name}")
+                if value == 0:
+                    if self.last_valid_trigger == 4:
+                        self._triggers["unit_exit"] = True
+                        logger.info("PLC Modbus Signal Triggered [DIFFERENTIAL DOWN 4->0]: unit_exit")
+                    self.last_valid_trigger = 0
+                    logger.info("Sequence Reset (0) diterima.")
+                    return
+                
+                if value in TRIGGER_VALUES:
+                    # --- Global Strict Sequence & Anti-Bouncing ---
+                    is_valid = False
+                    if value == 1:
+                        is_valid = True # Selalu izinkan Trigger 1 (Boks baru masuk)
+                    elif value == self.last_valid_trigger + 1:
+                        is_valid = True # Harus berurutan 1->2, 2->3, 3->4
+                        
+                    if is_valid and value != self.last_valid_trigger:
+                        trigger_name = TRIGGER_VALUES[value]
+                        if value == 4:
+                            self.last_valid_trigger = 4
+                            logger.info("PLC Modbus Signal [Value 4] received. WAITING for 0 (Differential Down) to execute unit_exit.")
+                        else:
+                            self._triggers[trigger_name] = True
+                            self.last_valid_trigger = value
+                            logger.info(f"PLC Modbus Signal Triggered [Value {value}]: {trigger_name}")
+                    else:
+                        if value != self.last_valid_trigger:
+                            logger.warning(f"Global Modbus: Sequence terabaikan! Boks melompat dari step {self.last_valid_trigger} ke {value}.")
 
     def start_server_thread(self):
         """Starts the PyModbus Async TCP Server in a separate background thread so it doesn't block FastAPI."""
@@ -102,12 +198,32 @@ class ModbusHandler:
         
         def run_server():
             # Initialize Data Store
-            # Address 0 to 9, initialized with 0
+            # Address 0 to 9, initialized with 0 for HR, False for Coils
             self.datablock = TriggerDataBlock(0, [0] * 10, self._on_plc_write)
+            self.coil_datablock = SensorCoilDataBlock(0, [False] * 10, self._on_plc_write)
+            
             store = ModbusDeviceContext(
-                hr=self.datablock # Holding Registers
+                co=self.coil_datablock, # Coils for Factory I/O Sensors
+                hr=self.datablock       # Holding Registers for PLC triggers and alarms
             )
             context = ModbusServerContext(devices=store, single=True)
+            
+            # --- PLC Heartbeat ---
+            # Writes an incrementing counter (0-100) to Register 4 every 1000ms
+            def heartbeat_loop():
+                counter = 0
+                while True:
+                    if self.datablock:
+                        try:
+                            self.datablock.setValues(4, [counter])
+                            counter += 1
+                            if counter > 100:
+                                counter = 0
+                        except Exception as e:
+                            logger.error(f"Heartbeat error: {e}")
+                    time.sleep(1.0)
+            
+            threading.Thread(target=heartbeat_loop, daemon=True).start()
             
             # Start the TCP server correctly via pymodbus helper
             try:
