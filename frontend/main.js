@@ -7,6 +7,7 @@ const API_URL = `${window.location.protocol}//${host}/api`;
 let historyData = [];
 let selectedHistoryItem = null;
 let currentHistoryCamera = 'right';
+let lastProcessedFrameId = null;
 
 // Bolt Configuration (for history filtering)
 const boltHierarchy = {
@@ -137,6 +138,19 @@ function connectWebSocket() {
                     // Reset interval stats if you want rolling averages, or leave it for cumulative
                 }
                 */
+            }
+
+            // Auto-reload history list when a new inspection is finalized
+            const finalResult = data.system?.final_result;
+            if (finalResult === 'OK' || finalResult === 'NG') {
+                if (lastProcessedFrameId !== 'done') {
+                    lastProcessedFrameId = 'done';
+                    console.log(`New inspection finalized (${finalResult}). Reloading history...`);
+                    loadHistory();
+                }
+            } else {
+                // Reset tracker when result goes back to '-' (new cycle started)
+                lastProcessedFrameId = null;
             }
 
             updateMonitoringDashboard(data);

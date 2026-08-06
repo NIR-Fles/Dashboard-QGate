@@ -6,12 +6,60 @@
 > 🎯 **Project Evolution Overview**
 > From the initial commit to a finalized, air-gapped industrial bolt inspection system. The project evolved from basic UI mockups to a complex dual-AI (YOLO11 + PaddleOCR) architecture integrated directly with factory hardware via Modbus TCP. This document tracks the precise architectural evolution and file modifications across the system's history.
 
+## 📅 2026-07-12
+### ⚡ Backend OCR Disabling & YOLO Class Filtering
+* **YOLO Class Exclude (`backend/yolo_processor.py`)**: Filtered out `FRAME_ID` detections. It is now skipped during result parsing and omitted from `result.plot(classes=...)` drawing. This removes the green bounding box around the frame ID area on the upper camera feed.
+* **Backend OCR Bypass (`backend/main.py`)**: Commented out PaddleOCR initialization and backend crop-inference logic (`ocr.process`). Frame IDs now default cleanly to `"-"` as requested.
+
+### ⚡ Natural & Descending Sequential Camera Sort
+* **Natural Descending Sort (`backend/camera_handler.py`)**: Updated the sequential camera simulator (`FileCameraHandler`) to sort the image list using natural sorting (so numeric prefixes like 1 to 100 sort as `100, 99, ..., 2, 1` instead of alphabetical/lexicographical sorting like `100, 10, 1`). Enabled descending order (`reverse=True`) as requested.
+
+---
+
+### 🔄 PANDUAN PENGEMBALIAN FITUR OCR (RESTORE/UNCOMMENT GUIDE)
+Jika ingin mengaktifkan kembali pembacaan nomor rangka (Frame ID) lewat OCR secara normal, ikuti langkah-langkah berikut:
+
+#### 1. BACKEND RESTORE
+* **[backend/main.py](file:///d:/Dashboard%20QGate/backend/main.py)**:
+  - **Baris 68**: Aktifkan kembali inisialisasi OCR dengan menghapus `ocr = None #` dan membiarkan `ocr = get_ocr_processor(SYSTEM_MODE)`.
+  - **Baris 155-179**: Uncomment seluruh blok kode `if fid_info and upper_image is not None:` di dalam fungsi `run_ocr_then_save_history` agar backend kembali melakukan pemotongan gambar dan pemrosesan ke OCR.
+  - *(Opsional)* **Baris 142**: Jika Anda ingin menggunakan generator UUID fallback jika OCR gagal, Anda bisa uncomment `state_manager.generate_frame_id()`.
+* **[backend/yolo_processor.py](file:///d:/Dashboard%20QGate/backend/yolo_processor.py)**:
+  - **Baris 78-85**: Kembalikan model inference agar mendeteksi seluruh kelas (termasuk `FRAME_ID`) dengan menghapus filter `classes=valid_classes` dan langsung jalankan `results = self.model(frame)`. Hapus juga pencarian `frame_id_cls`.
+
+#### 2. FRONTEND RESTORE
+* **[frontend/index.html](file:///d:/Dashboard%20QGate/frontend/index.html)**:
+  - **Baris 60-64**: Uncomment bagian `#monitoring-frame-id` agar info Frame tampil di Dashboard.
+  - **Baris 218**: Ubah kembali label pencarian `"Search by ID:"` menjadi `"Search by ID Frame:"`.
+  - **Baris 243-245**: Uncomment kolom header `<th>Frame</th>` pada tabel riwayat.
+  - **Baris 260-264**: Uncomment bagian `#hist-detail-frame` agar info Frame muncul di sidebar detail riwayat.
+* **[frontend/main.js](file:///d:/Dashboard%20QGate/frontend/main.js)**:
+  - **Baris 245**: Hapus comment pada pemanggilan update live view `frameEl.textContent = state.system.frame_id ...`.
+  - **Baris 278**: Ubah logika filter pencarian dari `String(item.id).includes(searchTerm)` kembali menjadi `item.frame_id.toLowerCase().includes(searchTerm)`.
+  - **Baris 299**: Uncomment kolom baris data `<td>${item.frame_id}</td>` pada tabel riwayat.
+  - **Baris 316**: Hapus comment pada pembaruan detail sidebar `elements.history.details.frame.textContent = item.frame_id;`.
+
+---
+
 ## 📅 2026-07-09
 ### ⚡ Asynchronous Image Path Splitting, Redundant State Reset, and Coil-to-HR1 Unification
 * **Unified Modbus Trigger Path (`backend/modbus_handler.py`)**: Unified the trigger entry points. Coil combinations from simulation (Factory I/O / Blender) now write directly to Holding Register 1 (`self.hr_datablock.setValues(1, [trigger_val])`), routing all triggers through a single, standardized pipeline just like a real hardware PLC.
 * **Redundant Reset at State 1 (`backend/main.py`)**: Added `state_manager.reset()` to the `unit_enter` (State 1) trigger. This resolves the anomaly where a motorcycle frame is manually lifted off the line without triggering the exit sensor (State 4), preventing the dashboard from holding stale images or statuses from the previous cycle.
 * **Asynchronous Image Path Splitting (`backend/state_manager.py`, `backend/main.py`)**: Split image updating into two methods: `update_live_view` (instant dashboard update with downscaled image) and `save_history_image` (deferred background disk save with full resolution).
 * **Zero-Latency Dashboard Update (`backend/main.py`)**: Step 1 now immediately updates the live view on the dashboard in the main thread (latencies near 0ms), while the background OCR thread handles both running OCR and saving the full-resolution history images to disk sequentially using the final OCR-resolved Frame ID.
+
+### 🛠️ Hiding Frame ID in Frontend (UI-only Temporary Change)
+To hide the Frame ID representation in the frontend UI while keeping backend operations intact:
+* **HTML UI Changes (`frontend/index.html`)**:
+  - Commented out Monitoring panel Frame ID display (`#monitoring-frame-id`).
+  - Changed history search label from `"Search by ID Frame:"` to `"Search by ID:"`.
+  - Commented out history table header (`<th>Frame</th>`).
+  - Commented out history detail side panel ID Frame representation (`#hist-detail-frame`).
+* **JavaScript UI Changes (`frontend/main.js`)**:
+  - Commented out monitoring live update mapping for `monitoring-frame-id`.
+  - Redirected search table filtering logic to search by database sequence ID (`item.id`) instead of `item.frame_id`.
+  - Commented out table row interpolation cell `<td>${item.frame_id}</td>` inside `tr.innerHTML`.
+  - Commented out selected history item detail assignment for `elements.history.details.frame`.
 
 ## 📅 2026-05-18
 ### ⚡ OpenVINO YOLOv11 Acceleration, Thread-Safe Async OCR, and PLC Differential Down Logic

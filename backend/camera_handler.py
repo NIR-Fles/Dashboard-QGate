@@ -4,6 +4,7 @@ import numpy as np
 import time
 import os
 import random
+import re
 
 logger = logging.getLogger("camera_handler")
 
@@ -85,7 +86,11 @@ class FileCameraHandler(CameraHandlerBase):
                 # -----------------------------------
                 
                 # --- NEW (Sequential Selection) ---
-                files = sorted([f for f in os.listdir(dir_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+                files = sorted(
+                    [f for f in os.listdir(dir_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))],
+                    key=lambda s: [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)],
+                    reverse=True
+                )
                 if files:
                     chosen_index = self.current_index % len(files)
                     chosen_file = files[chosen_index]

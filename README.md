@@ -84,19 +84,19 @@ Run these triggers from your terminal using `curl`:
 
 * **Initialize Unit Enter:**
   ```bash
-  curl -X POST http://localhost:8000/debug/trigger/unit_enter
+  curl.exe -X POST http://localhost:8000/debug/trigger/unit_enter
   ```
 * **Trigger Capture Step 1 (Upper & Lower Cameras + YOLO + Start Async OCR):**
   ```bash
-  curl -X POST http://localhost:8000/debug/trigger/capture_step_1
+  curl.exe -X POST http://localhost:8000/debug/trigger/capture_step_1
   ```
 * **Trigger Capture Step 2 (Cameras + YOLO + Save to DB):**
   ```bash
-  curl -X POST http://localhost:8000/debug/trigger/capture_step_2
+  curl.exe -X POST http://localhost:8000/debug/trigger/capture_step_2
   ```
 * **Trigger Unit Exit (Reset Dashboard State):**
   ```bash
-  curl -X POST http://localhost:8000/debug/trigger/unit_exit
+  curl.exe -X POST http://localhost:8000/debug/trigger/unit_exit
   ```
 
 ---

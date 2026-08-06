@@ -31,7 +31,7 @@ logger = logging.getLogger("main")
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # test_images_path = os.path.join(current_dir, "test_images") # ORIGINAL RANDOM TEST
 test_images_path = os.path.join(current_dir, "test_images", "for_benchmark") # BENCHMARK SEQUENTIAL TEST
-model_path = os.path.join(current_dir, "best-p2_openvino_model")
+model_path = os.path.join(current_dir, "best-p2.onnx")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -139,7 +139,7 @@ def control_loop():
                         state_manager.update_live_view(cam_key, step, annotated_img)
                     
                     # Generate fallback frame ID (UUID) in case OCR fails
-                    # state_manager.generate_frame_id() dikomen sementara dulu
+                    state_manager.generate_frame_id()
                     
                     # Look for FRAME_ID or similar label in the detections
                     frame_id_info = next((d for d in upper_detection_details if "FRAME_ID" in d["label"]), None)

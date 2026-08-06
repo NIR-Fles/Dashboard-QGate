@@ -1,5 +1,7 @@
 import logging
 import random
+import cv2
+import numpy as np
 
 try:
     from ultralytics import YOLO
@@ -69,13 +71,14 @@ class RealYoloProcessor(YoloProcessorBase):
 
     def process(self, frame):
         if not self.model or frame is None:
-            return [], frame
+            return [], frame, []
             
         detected = []
         detection_details = [] # Store raw details like boxes for cropping
         annotated_frame = frame
         try:
             results = self.model(frame)
+            
             for result in results:
                 for box in result.boxes:
                      class_id = int(box.cls)
@@ -91,8 +94,41 @@ class RealYoloProcessor(YoloProcessorBase):
                          "box": box.xyxy[0].tolist() 
                      })
                      
-                # Extract the image with drawn bounding boxes
-                annotated_frame = result.plot()
+                # Draw bounding boxes manually for full control over font size
+                # Generate unique color per class using a golden-ratio hue spread
+                annotated_frame = frame.copy()
+                for box in result.boxes:
+                    cls_id = int(box.cls)
+                    label = self.model.names[cls_id]
+                    conf = float(box.conf)
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                    
+                    # Unique color per class (HSV hue spread -> BGR)
+                    hue = int((cls_id * 37) % 180)  # golden-ratio-like spread
+                    hsv_color = np.array([[[hue, 200, 255]]], dtype=np.uint8)
+                    bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)[0][0]
+                    color = tuple(int(c) for c in bgr_color)
+                    
+                    # Draw box
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 3)
+                    
+                    # Draw label with small font and 50% opacity background
+                    text = f"{label} {conf:.2f}"
+                    font_scale = 2
+                    thickness = 3
+                    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+                    
+                    # Semi-transparent label background (50% opacity)
+                    bg_y1 = max(y1 - th - 6, 0)
+                    bg_y2 = y1
+                    bg_x1 = x1
+                    bg_x2 = min(x1 + tw + 4, annotated_frame.shape[1])
+                    overlay = annotated_frame.copy()
+                    cv2.rectangle(overlay, (bg_x1, bg_y1), (bg_x2, bg_y2), color, -1)
+                    cv2.addWeighted(overlay, 0.5, annotated_frame, 0.5, 0, annotated_frame)
+                    
+                    # Draw text on top
+                    cv2.putText(annotated_frame, text, (x1 + 2, y1 - 3), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
                 
         except Exception as e:
             logger.error(f"YOLO Inference Error: {e}")
